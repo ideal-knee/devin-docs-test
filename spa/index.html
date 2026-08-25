@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#11131a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Tilt Spike</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Tilt Spike</h1>
+  <nav>
+    <a href="#/marble" data-route="/marble">Marble</a>
+    <a href="#/level" data-route="/level">Level</a>
+    <a href="#/about" data-route="/about">About</a>
+  </nav>
+</header>
+
+<main id="view"></main>
+
+<template id="tpl-marble">
+  <section class="screen">
+    <p class="hint">Tilt your phone to roll the marble into the glowing hole.</p>
+    <canvas id="board" width="600" height="800"></canvas>
+    <div class="row">
+      <span class="stat">Level <b id="lvl">1</b></span>
+      <span class="stat">Time <b id="time">0.0</b>s</span>
+      <button id="reset" class="ghost">Reset</button>
+    </div>
+  </section>
+</template>
+
+<template id="tpl-level">
+  <section class="screen">
+    <p class="hint">A bubble level. Lay the phone flat.</p>
+    <div id="bubble-wrap"><div id="bubble"></div><div id="crosshair"></div></div>
+    <p class="readout"><span id="pitch">0.0</span>&deg; pitch / <span id="roll">0.0</span>&deg; roll</p>
+  </section>
+</template>
+
+<template id="tpl-about">
+  <section class="screen prose">
+    <h2>What this is</h2>
+    <p>A single-page app served straight off GitHub Pages &mdash; no build step, no
+      server. Routing is hash-based (<code>#/marble</code>) so deep links survive a
+      refresh without needing server rewrites.</p>
+    <p>Motion comes from <code>deviceorientation</code>. iOS (Safari and Chrome, which
+      share WebKit) requires an explicit <code>requestPermission()</code> call from a
+      user gesture, hence the tap-to-start button. Desktop browsers get a mouse
+      fallback so the thing is still playable.</p>
+    <p><a href="../">&larr; Back to the site</a></p>
+  </section>
+</template>
+
+<div id="gate" hidden>
+  <div class="gate-card">
+    <h2>Enable motion</h2>
+    <p id="gate-msg">iOS needs your permission to read the tilt sensors.</p>
+    <button id="gate-btn">Tap to enable</button>
+    <button id="gate-skip" class="ghost">Use mouse instead</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

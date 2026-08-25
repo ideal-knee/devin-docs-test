@@ -11,3 +11,4 @@ This site is a place to document whatever I feel like.
 
 - [Hello World](/)
 - [The Case of the Borrowed Hatchet](stories/the-case-of-the-borrowed-hatchet.html) — a woods mystery
+- [Tilt Spike](spa/) — a tilt-controlled SPA, best on a phone
