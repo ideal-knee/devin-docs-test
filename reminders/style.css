@@ -214,6 +214,43 @@ button.ghost {
 
 .status a { color: var(--accent); }
 
+#gate {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17, 19, 26, 0.92);
+}
+
+#gate[hidden] { display: none; }
+
+.gate-card {
+  width: 100%;
+  max-width: 320px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gate-card h2 { margin: 0; font-size: 18px; }
+.gate-card p { margin: 0; font-size: 14px; color: var(--muted); }
+.gate-card input { width: 100%; }
+.gate-card .row { display: flex; gap: 8px; }
+.gate-card button[type="submit"] {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
 footer {
   display: flex;
   align-items: center;

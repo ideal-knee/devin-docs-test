@@ -59,15 +59,22 @@
         <input id="f-token" type="password" placeholder="github_pat_&hellip;"
                autocapitalize="none" autocorrect="off" spellcheck="false">
       </label>
+      <label>Passcode <small>optional &mdash; encrypts the stored token</small>
+        <input id="f-pass" type="password" placeholder="leave blank to store in plain text"
+               autocapitalize="none" autocorrect="off" spellcheck="false">
+      </label>
       <div class="row">
         <button type="submit">Save &amp; load</button>
+        <button type="button" id="f-lock" class="ghost" hidden>Lock</button>
         <button type="button" id="f-clear" class="ghost">Forget token</button>
       </div>
       <p id="settings-msg" class="status"></p>
     </form>
-    <p class="warn-note">Anyone who can unlock this device can read the token out of
-      the browser. Scope it to the data repo with <i>Contents: Read-only</i> and nothing
-      else, and revoke it if the device goes missing.</p>
+    <p class="warn-note">With a passcode the token is encrypted at rest with AES-GCM
+      under a PBKDF2 key, and only the decrypted copy in memory is used &mdash; so
+      someone holding this device still needs the passcode. Without one it sits in
+      <code>localStorage</code> in plain text. Either way, scope the token to the data
+      repo with <i>Contents: Read-only</i> and revoke it if the device goes missing.</p>
   </section>
 </template>
 
@@ -140,6 +147,20 @@
     <p><a href="../">&larr; Back to the site</a></p>
   </section>
 </template>
+
+<div id="gate" hidden>
+  <form class="gate-card" id="gate-form">
+    <h2>Locked</h2>
+    <p>Enter the passcode to decrypt your GitHub token on this device.</p>
+    <input id="gate-pass" type="password" placeholder="Passcode"
+           autocapitalize="none" autocorrect="off" spellcheck="false">
+    <p id="gate-msg" class="status"></p>
+    <div class="row">
+      <button type="submit">Unlock</button>
+      <button type="button" id="gate-skip" class="ghost">View sample data</button>
+    </div>
+  </form>
+</div>
 
 <footer>
   <span id="mode" class="tag"></span>

@@ -2,10 +2,18 @@
    The page itself is public, so the read-only token lives in localStorage per device. */
 
 const STORE_KEY = 'reminders-config';
-const DEFAULTS = { repo: 'ideal-knee/reminder-data', path: 'reminders.json', branch: 'main', token: '' };
+const DEFAULTS = {
+  repo: 'ideal-knee/reminder-data',
+  path: 'reminders.json',
+  branch: 'main',
+  token: '',   // plain text, only when no passcode is set
+  enc: null    // { salt, iv, ct } base64, when a passcode is set
+};
+const PBKDF2_ITERATIONS = 250000;
 
 const state = {
   config: loadConfig(),
+  token: '',   // decrypted token, memory only
   data: null,
   error: null,
   loading: false,
@@ -17,6 +25,7 @@ const state = {
 const view = document.getElementById('view');
 const stamp = document.getElementById('stamp');
 const modeTag = document.getElementById('mode');
+const gate = document.getElementById('gate');
 
 /* ---------- config ---------- */
 
@@ -33,15 +42,60 @@ function saveConfig(config) {
   localStorage.setItem(STORE_KEY, JSON.stringify(state.config));
 }
 
+function locked() {
+  return Boolean(state.config.enc) && !state.token;
+}
+
 function configured() {
-  const { repo, path, token } = state.config;
-  return Boolean(repo && path && token);
+  const { repo, path } = state.config;
+  return Boolean(repo && path && state.token);
+}
+
+/* ---------- token encryption ----------
+   AES-GCM under a PBKDF2-derived key, so a stolen device yields only ciphertext. */
+
+const b64 = {
+  encode: bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))),
+  decode: text => Uint8Array.from(atob(text), c => c.charCodeAt(0))
+};
+
+async function deriveKey(passcode, salt) {
+  const material = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(passcode), 'PBKDF2', false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    material,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptToken(token, passcode) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(passcode, salt);
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv }, key, new TextEncoder().encode(token)
+  );
+  return { salt: b64.encode(salt), iv: b64.encode(iv), ct: b64.encode(ct) };
+}
+
+async function decryptToken(enc, passcode) {
+  const key = await deriveKey(passcode, b64.decode(enc.salt));
+  // A wrong passcode fails the GCM tag check and throws.
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: b64.decode(enc.iv) }, key, b64.decode(enc.ct)
+  );
+  return new TextDecoder().decode(plain);
 }
 
 /* ---------- data ---------- */
 
 async function fetchSnapshot() {
-  const { repo, path, branch, token } = state.config;
+  const { repo, path, branch } = state.config;
+  const token = state.token;
   const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${encodeURIComponent(branch || 'main')}&t=${Date.now()}`;
   // The raw media type returns the file body itself rather than base64 in a wrapper.
   const res = await fetch(url, {
@@ -60,6 +114,11 @@ async function fetchSnapshot() {
 }
 
 async function load() {
+  if (locked()) {
+    state.loading = false;
+    render();
+    return;
+  }
   state.loading = true;
   state.error = null;
   render();
@@ -205,28 +264,58 @@ function mountSettings() {
   const path = document.getElementById('f-path');
   const branch = document.getElementById('f-branch');
   const token = document.getElementById('f-token');
+  const pass = document.getElementById('f-pass');
+  const lock = document.getElementById('f-lock');
   const msg = document.getElementById('settings-msg');
 
   repo.value = state.config.repo;
   path.value = state.config.path;
   branch.value = state.config.branch;
-  token.value = state.config.token;
+  token.value = state.token;
+  lock.hidden = !state.config.enc || !state.token;
+
+  if (state.config.enc && !token.value) {
+    token.placeholder = 'encrypted \u2014 leave blank to keep the stored token';
+  }
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
+    msg.classList.remove('error');
+
     const value = repo.value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/$/, '');
     if (!/^[\w.-]+\/[\w.-]+$/.test(value)) {
       msg.textContent = 'Repo should look like owner/name.';
       msg.classList.add('error');
       return;
     }
-    saveConfig({
+
+    const next = {
+      ...state.config,
       repo: value,
       path: path.value.trim().replace(/^\//, '') || DEFAULTS.path,
-      branch: branch.value.trim() || DEFAULTS.branch,
-      token: token.value.trim()
-    });
-    msg.classList.remove('error');
+      branch: branch.value.trim() || DEFAULTS.branch
+    };
+    const entered = token.value.trim();
+    const passcode = pass.value;
+
+    if (entered) state.token = entered;
+    if (passcode) {
+      if (!state.token) {
+        msg.textContent = 'Enter the token before setting a passcode.';
+        msg.classList.add('error');
+        return;
+      }
+      msg.textContent = 'Encrypting\u2026';
+      next.enc = await encryptToken(state.token, passcode);
+      next.token = '';
+    } else if (entered) {
+      // A new token typed with no passcode replaces any encrypted copy.
+      next.enc = null;
+      next.token = state.token;
+    }
+    saveConfig(next);
+    pass.value = '';
+
     msg.textContent = 'Checking\u2026';
     await load();
     if (state.error) {
@@ -237,11 +326,46 @@ function mountSettings() {
     }
   });
 
+  lock.addEventListener('click', () => {
+    state.token = '';
+    state.data = null;
+    render();
+  });
+
   document.getElementById('f-clear').addEventListener('click', () => {
-    saveConfig({ ...state.config, token: '' });
+    saveConfig({ ...state.config, token: '', enc: null });
+    state.token = '';
     token.value = '';
     msg.classList.remove('error');
     msg.textContent = 'Token cleared from this browser.';
+    load();
+  });
+}
+
+/* ---------- unlock gate ---------- */
+
+function mountGate() {
+  const form = document.getElementById('gate-form');
+  const input = document.getElementById('gate-pass');
+  const msg = document.getElementById('gate-msg');
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    msg.classList.remove('error');
+    msg.textContent = 'Unlocking\u2026';
+    try {
+      state.token = await decryptToken(state.config.enc, input.value);
+      input.value = '';
+      msg.textContent = '';
+      load();
+    } catch {
+      msg.textContent = 'Wrong passcode.';
+      msg.classList.add('error');
+    }
+  });
+
+  document.getElementById('gate-skip').addEventListener('click', () => {
+    state.config = { ...state.config, enc: null };  // this session only; storage untouched
     load();
   });
 }
@@ -265,17 +389,22 @@ function render() {
     a.classList.toggle('active', a.dataset.route === route);
   }
 
+  gate.hidden = !locked();
+
   view.replaceChildren(document.getElementById(templateFor(route)).content.cloneNode(true));
 
   if (route === '/settings') mountSettings();
   else if (route !== '/setup') mountList(route === '/all');
 
-  modeTag.textContent = state.demo ? 'sample data' : state.config.repo || 'not connected';
+  if (locked()) modeTag.textContent = 'locked';
+  else modeTag.textContent = state.demo ? 'sample data' : state.config.repo;
   const generated = state.data && parseDate(state.data.generated_at);
   stamp.textContent = generated ? `snapshot ${generated.toLocaleString()}` : '';
 }
 
 window.addEventListener('hashchange', render);
 
+state.token = state.config.token || '';
+mountGate();
 render();
 load();
