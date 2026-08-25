@@ -146,6 +146,18 @@
       "priority": 0,
       "flagged": false,
       "completed": true
+    },
+    {
+      "id": "sample-13",
+      "title": "Pick up the seed order",
+      "list": "Errands",
+      "notes": "Imported before the shortcut recorded creation dates.",
+      "created": null,
+      "due": "2026-08-24T12:00:00Z",
+      "completed_at": null,
+      "priority": 0,
+      "flagged": false,
+      "completed": true
     }
   ]
 }

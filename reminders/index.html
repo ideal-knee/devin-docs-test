@@ -168,17 +168,16 @@
     <ol>
       <li>Inside the loop, add a <b>Dictionary</b> action. A dictionary is a list of
         key/value pairs &mdash; one per field this page reads.</li>
-      <li>Tap <b>Add new item</b> and create these ten keys, one at a time. For each one,
+      <li>Tap <b>Add new item</b> and create these nine keys, one at a time. For each one,
         type the key name, then tap the value field, insert the <i>Repeat Item</i>
         variable, and tap that inserted variable to choose the property:
         <table class="table keys">
           <thead><tr><th>Key</th><th>Property to pick</th></tr></thead>
           <tbody>
-            <tr><td><code>id</code></td><td>Identifier</td></tr>
-            <tr><td><code>title</code></td><td>Name (or Title)</td></tr>
+            <tr><td><code>title</code></td><td>Name</td></tr>
             <tr><td><code>list</code></td><td>List</td></tr>
             <tr><td><code>notes</code></td><td>Notes</td></tr>
-            <tr><td><code>created</code></td><td>Creation Date &mdash; see note below</td></tr>
+            <tr><td><code>created</code></td><td>Date Created &mdash; see note below</td></tr>
             <tr><td><code>due</code></td><td>Due Date</td></tr>
             <tr><td><code>completed_at</code></td><td>Completion Date</td></tr>
             <tr><td><code>priority</code></td><td>Priority</td></tr>
@@ -190,9 +189,18 @@
       <li>For the three date keys (<code>created</code>, <code>due</code>,
         <code>completed_at</code>), tap the variable once more and set <b>Date Format</b>
         to <b>ISO 8601</b>. Any other format will not parse here.</li>
-      <li>If your version of <i>Repeat Item</i> offers no <b>Creation Date</b> property,
+      <li>If your version of <i>Repeat Item</i> offers no <b>Date Created</b> property,
         skip the <code>created</code> row entirely. The page handles its absence &mdash;
-        only the age-based figures on Stats disappear.</li>
+        only the age-based figures on Stats disappear. The same is true of any other key
+        you cannot find: nothing here is required.</li>
+      <li>Immediately after the Dictionary, still inside the loop, add
+        <b>Get Dictionary from Input</b>. Without it the loop can fail with
+        <i>&ldquo;Repeat with Each failed because Shortcuts couldn&rsquo;t convert from
+        Reminder to Dictionary&rdquo;</i> &mdash; the Dictionary action builds a value but
+        does not always hand it onward as the iteration&rsquo;s result, so Shortcuts falls
+        back to the reminder itself. This action forces the dictionary to be the
+        loop&rsquo;s output, and must be the <b>last</b> action before <i>End Repeat</i>,
+        because that is the one whose output lands in <i>Repeat Results</i>.</li>
     </ol>
 
     <h4>3d. Package the whole snapshot</h4>
@@ -241,6 +249,17 @@
       <code>401</code> means the write token is wrong or expired, <code>404</code> means
       the repo/path is wrong or the token is not scoped to that repo, and <code>409</code>
       means the <code>sha</code> did not come through.</p>
+    <p>Errors from Shortcuts itself, before any request goes out:</p>
+    <ul>
+      <li><i>&ldquo;Repeat with Each failed because Shortcuts couldn&rsquo;t convert from
+        Reminder to Dictionary&rdquo;</i> &mdash; the loop is handing on the reminder
+        rather than your dictionary. Add <b>Get Dictionary from Input</b> as the last
+        action inside the loop (step 3c). If it persists, replace the Dictionary with a
+        <b>Text</b> action holding the JSON for one row, with the properties dropped in
+        as variables, and put <b>Get Dictionary from Input</b> after that.</li>
+      <li><i>Base64 Encode</i> refusing its input &mdash; put <b>Get Text from Input</b>
+        in front of it.</li>
+    </ul>
     <p class="warn-note">The write token is stored inside the shortcut in plain text, so
       do not use <i>Share</i> to send this shortcut to anyone &mdash; the token travels
       with it.</p>
