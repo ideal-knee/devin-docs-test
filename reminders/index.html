@@ -122,8 +122,10 @@
 
     <h3>3. Build the Shortcut</h3>
     <ol>
-      <li><b>Find Reminders</b> &mdash; filter as you like (e.g. <i>Is Completed</i> is
-        <i>No</i>), sort by due date.</li>
+      <li><b>Find Reminders</b> &mdash; add <i>no</i> <i>Is Completed</i> filter, so both
+        open and finished reminders come through; sort by due date. (If the action was
+        created from a template it may have <i>Is Completed</i> is <i>No</i> preset
+        &mdash; tap the filter and delete it.)</li>
       <li><b>Repeat with Each</b> over the result. Inside, add a <b>Dictionary</b> with
         keys <code>id</code>, <code>title</code>, <code>list</code>, <code>notes</code>,
         <code>created</code>, <code>due</code>, <code>completed_at</code>,
@@ -132,9 +134,7 @@
         <br><b>For the Stats tab:</b> <code>completed_at</code> comes from the
         <i>Completion Date</i> detail, and <code>created</code> from <i>Creation
         Date</i> if your version of the action offers it &mdash; leave it out and the
-        age-based figures simply drop away. Also make sure <b>Find Reminders</b> is
-        <i>not</i> filtering completed items out, or finished work never reaches the
-        snapshot.</li>
+        age-based figures simply drop away.</li>
       <li>After the loop, wrap the <i>Repeat Results</i> in a <b>Dictionary</b> with
         <code>version</code> = 2, <code>generated_at</code> = current date (ISO 8601),
         <code>source</code> = <code>shortcut</code>, and <code>reminders</code> = the
