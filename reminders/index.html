@@ -76,6 +76,10 @@
       <label>Read-only token
         <input id="f-token" type="password" placeholder="github_pat_&hellip;"
                autocapitalize="none" autocorrect="off" spellcheck="false">
+        <small><a href="https://github.com/settings/personal-access-tokens/new"
+           target="_blank" rel="noopener">Create a fine-grained token</a> &mdash; under
+          <i>Repository access</i> pick only your data repo, then <i>Repository
+          permissions &rarr; Contents &rarr; Read-only</i>.</small>
       </label>
       <label>Passcode <small>optional &mdash; encrypts the stored token</small>
         <input id="f-pass" type="password" placeholder="leave blank to store in plain text"
@@ -119,41 +123,127 @@
       <li><b>Read token</b> &mdash; <i>Contents: Read-only</i>. Pasted into
         <a href="#/settings">Settings</a> on each device that views this page.</li>
     </ul>
+    <p>Create either one at
+      <a href="https://github.com/settings/personal-access-tokens/new"
+         target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</p>
 
     <h3>3. Build the Shortcut</h3>
+    <p>Never built one before? A shortcut is just a vertical list of actions that run top
+      to bottom, each one feeding the next. You add actions by tapping <b>Add Action</b>
+      (or the search field at the bottom of the editor) and searching for them by name.
+      The whole thing takes about fifteen minutes; nothing here can damage your
+      reminders, since every action below only reads them.</p>
+    <p>Two ideas worth knowing before you start:</p>
+    <ul>
+      <li><b>Magic variables</b> are how one action uses an earlier action&rsquo;s output.
+        Tap a field, then tap the variable chip above the keyboard (or the wand-shaped
+        <i>Select Variable</i> button) and pick the action you want the value from.</li>
+      <li><b>Tapping a variable you already inserted</b> opens a detail popover. For a
+        reminder that popover lets you pick <i>which property</i> you want &mdash;
+        <i>Title</i>, <i>Due Date</i>, and so on &mdash; and for dates it offers a
+        <i>Date Format</i> option. This is how most of the fields below get filled.</li>
+    </ul>
+
+    <h4>3a. Create it</h4>
     <ol>
-      <li><b>Find Reminders</b> &mdash; add <i>no</i> <i>Is Completed</i> filter, so both
-        open and finished reminders come through; sort by due date. (If the action was
-        created from a template it may have <i>Is Completed</i> is <i>No</i> preset
-        &mdash; tap the filter and delete it.)</li>
-      <li><b>Repeat with Each</b> over the result. Inside, add a <b>Dictionary</b> with
-        keys <code>id</code>, <code>title</code>, <code>list</code>, <code>notes</code>,
-        <code>created</code>, <code>due</code>, <code>completed_at</code>,
-        <code>priority</code>, <code>flagged</code>, <code>completed</code>, filling each
-        from the <i>Repeat Item</i> magic variable. Format every date as ISO 8601.
-        <br><b>For the Stats tab:</b> <code>completed_at</code> comes from the
-        <i>Completion Date</i> detail, and <code>created</code> from <i>Creation
-        Date</i> if your version of the action offers it &mdash; leave it out and the
-        age-based figures simply drop away.</li>
-      <li>After the loop, wrap the <i>Repeat Results</i> in a <b>Dictionary</b> with
-        <code>version</code> = 2, <code>generated_at</code> = current date (ISO 8601),
-        <code>source</code> = <code>shortcut</code>, and <code>reminders</code> = the
-        repeat results.</li>
-      <li><b>Base64 Encode</b> that dictionary&rsquo;s text, with <i>Line Breaks</i> set
-        to <i>None</i>.</li>
-      <li><b>Get Contents of URL</b> &mdash; <code>GET</code>
-        <code class="wrap">https://api.github.com/repos/ideal-knee/reminder-data/contents/reminders.json?ref=main</code>
-        with headers <code>Authorization: Bearer &lt;write token&gt;</code> and
-        <code>Accept: application/vnd.github+json</code>. Take <b>Get Dictionary
-        Value</b> <code>sha</code> from the response &mdash; GitHub requires the previous
-        blob SHA to overwrite a file.</li>
-      <li><b>Get Contents of URL</b> &mdash; <code>PUT</code> to the same URL (without
-        <code>?ref=</code>), same headers, JSON body:
+      <li>Open the <b>Shortcuts</b> app, go to the <b>Shortcuts</b> tab, and tap
+        <b>+</b> in the top-right corner.</li>
+      <li>Tap the name at the top and call it something like <i>Push Reminders</i>.</li>
+    </ol>
+
+    <h4>3b. Read the reminders</h4>
+    <ol>
+      <li>Add <b>Find Reminders</b>. Leave it with <i>no</i> filters at all &mdash; if it
+        arrived with <i>Is Completed</i> is <i>No</i>, swipe that row away, or the Stats
+        tab will never see a single completed item.</li>
+      <li>Optionally tap <b>Sort by</b> and choose <i>Due Date</i>. Order does not matter
+        to this page, but it makes the shortcut&rsquo;s own preview easier to read.</li>
+      <li>Add <b>Repeat with Each</b>. It should already say <i>Repeat with each item in
+        Reminders</i>; if it does not, tap its input field and pick the
+        <i>Reminders</i> variable. Everything in the next step goes <i>inside</i> this
+        loop, between <i>Repeat with Each</i> and <i>End Repeat</i>.</li>
+    </ol>
+
+    <h4>3c. Turn each reminder into a row</h4>
+    <ol>
+      <li>Inside the loop, add a <b>Dictionary</b> action. A dictionary is a list of
+        key/value pairs &mdash; one per field this page reads.</li>
+      <li>Tap <b>Add new item</b> and create these ten keys, one at a time. For each one,
+        type the key name, then tap the value field, insert the <i>Repeat Item</i>
+        variable, and tap that inserted variable to choose the property:
+        <table class="table keys">
+          <thead><tr><th>Key</th><th>Property to pick</th></tr></thead>
+          <tbody>
+            <tr><td><code>id</code></td><td>Identifier</td></tr>
+            <tr><td><code>title</code></td><td>Name (or Title)</td></tr>
+            <tr><td><code>list</code></td><td>List</td></tr>
+            <tr><td><code>notes</code></td><td>Notes</td></tr>
+            <tr><td><code>created</code></td><td>Creation Date &mdash; see note below</td></tr>
+            <tr><td><code>due</code></td><td>Due Date</td></tr>
+            <tr><td><code>completed_at</code></td><td>Completion Date</td></tr>
+            <tr><td><code>priority</code></td><td>Priority</td></tr>
+            <tr><td><code>flagged</code></td><td>Is Flagged</td></tr>
+            <tr><td><code>completed</code></td><td>Is Completed</td></tr>
+          </tbody>
+        </table>
+      </li>
+      <li>For the three date keys (<code>created</code>, <code>due</code>,
+        <code>completed_at</code>), tap the variable once more and set <b>Date Format</b>
+        to <b>ISO 8601</b>. Any other format will not parse here.</li>
+      <li>If your version of <i>Repeat Item</i> offers no <b>Creation Date</b> property,
+        skip the <code>created</code> row entirely. The page handles its absence &mdash;
+        only the age-based figures on Stats disappear.</li>
+    </ol>
+
+    <h4>3d. Package the whole snapshot</h4>
+    <ol>
+      <li>Below <b>End Repeat</b>, add another <b>Dictionary</b> with four keys:
+        <code>version</code> = <code>2</code>, <code>source</code> =
+        <code>shortcut</code>, <code>generated_at</code> = the <b>Current Date</b>
+        variable formatted as <i>ISO 8601</i>, and <code>reminders</code> = the
+        <b>Repeat Results</b> variable. Set the <code>reminders</code> row&rsquo;s type
+        to <b>Array</b> so the rows stay a list.</li>
+      <li>Add <b>Base64 Encode</b> and point it at that dictionary. Tap <b>Show More</b>
+        and set <i>Line Breaks</i> to <b>None</b> &mdash; GitHub rejects wrapped Base64.
+        If the action refuses a dictionary as input, put a <b>Get Text from Input</b>
+        action in front of it.</li>
+    </ol>
+
+    <h4>3e. Send it to GitHub</h4>
+    <p>Updating a file over the GitHub API takes two requests: one to learn the current
+      file&rsquo;s <code>sha</code>, and one to write the new contents. GitHub requires
+      that SHA as proof you are replacing the version you last saw.</p>
+    <ol>
+      <li>Add <b>Get Contents of URL</b> with the URL
+        <code class="wrap">https://api.github.com/repos/ideal-knee/reminder-data/contents/reminders.json?ref=main</code>.
+        Tap <b>Show More</b>, set <i>Method</i> to <b>GET</b>, and under <i>Headers</i>
+        tap <b>Add new header</b> twice:
+        <code>Authorization</code> = <code>Bearer &lt;your write token&gt;</code> and
+        <code>Accept</code> = <code>application/vnd.github+json</code>.</li>
+      <li>Add <b>Get Dictionary Value</b>, key <code>sha</code>, from the response of that
+        request.</li>
+      <li>Add a second <b>Get Contents of URL</b>, same URL but <i>without</i> the
+        <code>?ref=main</code> part. Set <i>Method</i> to <b>PUT</b>, add the same two
+        headers, set <i>Request Body</i> to <b>JSON</b>, and add four fields:
         <code>message</code> = <code>Update reminders snapshot</code>,
-        <code>content</code> = the Base64 text,
-        <code>sha</code> = the SHA from the previous step,
+        <code>content</code> = the <b>Base64 Encoded</b> variable,
+        <code>sha</code> = the <b>Dictionary Value</b> variable,
         <code>branch</code> = <code>main</code>.</li>
     </ol>
+
+    <h4>3f. Try it</h4>
+    <p>Tap the play button. The first run asks for permission to access Reminders and to
+      contact <code>api.github.com</code> &mdash; allow both. Then open the data repo on
+      github.com: you should see a fresh <i>Update reminders snapshot</i> commit. Paste
+      your read token into <a href="#/settings">Settings</a> here and your real reminders
+      replace the sample rows.</p>
+    <p>If the run fails, tap the last action to see GitHub&rsquo;s response.
+      <code>401</code> means the write token is wrong or expired, <code>404</code> means
+      the repo/path is wrong or the token is not scoped to that repo, and <code>409</code>
+      means the <code>sha</code> did not come through.</p>
+    <p class="warn-note">The write token is stored inside the shortcut in plain text, so
+      do not use <i>Share</i> to send this shortcut to anyone &mdash; the token travels
+      with it.</p>
 
     <h3>4. Running it hourly</h3>
     <p>Manual runs work today. For a schedule, add a <b>Personal Automation</b> in the

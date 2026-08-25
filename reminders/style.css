@@ -160,6 +160,7 @@ button.ghost {
 
 .prose h2 { font-size: 20px; }
 .prose h3 { font-size: 16px; margin-top: 24px; }
+.prose h4 { font-size: 15px; margin: 20px 0 8px; color: var(--muted); }
 .prose a { color: var(--accent); }
 .prose code {
   background: var(--panel);
@@ -253,6 +254,8 @@ button.ghost {
 }
 
 .table th:first-child, .table td:first-child { text-align: left; }
+.table.keys th, .table.keys td { text-align: left; }
+.table.keys { margin: 8px 0; }
 .table th { color: var(--muted); font-weight: 500; }
 
 .form {
