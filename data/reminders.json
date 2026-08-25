@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "generated_at": "2026-08-25T11:00:00Z",
+  "source": "sample",
+  "reminders": [
+    {
+      "id": "sample-1",
+      "title": "Buy chainsaw bar oil",
+      "list": "Errands",
+      "notes": "The hardware store on Route 9 carries it.",
+      "due": "2026-08-26T17:00:00Z",
+      "priority": 1,
+      "flagged": true,
+      "completed": false
+    },
+    {
+      "id": "sample-2",
+      "title": "Email the surveyor",
+      "list": "Work",
+      "notes": "",
+      "due": "2026-08-25T20:30:00Z",
+      "priority": 0,
+      "flagged": false,
+      "completed": false
+    },
+    {
+      "id": "sample-3",
+      "title": "Split the rest of the woodpile",
+      "list": "Home",
+      "notes": "",
+      "due": null,
+      "priority": 0,
+      "flagged": false,
+      "completed": false
+    },
+    {
+      "id": "sample-4",
+      "title": "Return the borrowed hatchet",
+      "list": "Home",
+      "notes": "",
+      "due": "2026-08-22T14:00:00Z",
+      "priority": 2,
+      "flagged": false,
+      "completed": true
+    }
+  ]
+}

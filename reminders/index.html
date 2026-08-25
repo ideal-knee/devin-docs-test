@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#11131a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Reminders Mirror</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Reminders Mirror</h1>
+  <nav>
+    <a href="#/open" data-route="/open">Open</a>
+    <a href="#/all" data-route="/all">All</a>
+    <a href="#/setup" data-route="/setup">Setup</a>
+  </nav>
+</header>
+
+<main id="view"></main>
+
+<template id="tpl-list">
+  <section class="screen">
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Filter by title, list or note" autocomplete="off">
+      <select id="list-filter"><option value="">All lists</option></select>
+      <button id="refresh" class="ghost">Refresh</button>
+    </div>
+    <p id="status" class="status"></p>
+    <ul id="items" class="items"></ul>
+    <p id="empty" class="empty" hidden>Nothing here.</p>
+  </section>
+</template>
+
+<template id="tpl-setup">
+  <section class="screen prose">
+    <h2>How the data gets here</h2>
+    <p>Safari cannot read Apple Reminders &mdash; there is no web API for it, and
+      iCloud&rsquo;s CalDAV endpoint blocks cross-origin browser requests. So the phone
+      pushes instead of the page pulling: an iOS Shortcut reads Reminders and commits a
+      JSON snapshot to this repo, and this page fetches that file.</p>
+
+    <h3>Build the Shortcut</h3>
+    <ol>
+      <li><b>Find Reminders</b> &mdash; filter as you like (e.g. <i>Is Completed</i> is
+        <i>No</i>), sort by due date.</li>
+      <li><b>Repeat with Each</b> over the result. Inside, add a <b>Dictionary</b> with
+        keys <code>id</code>, <code>title</code>, <code>list</code>, <code>notes</code>,
+        <code>due</code>, <code>priority</code>, <code>flagged</code>,
+        <code>completed</code>, filling each from the <i>Repeat Item</i> magic variable.
+        Format <code>due</code> as ISO 8601.</li>
+      <li>After the loop, wrap the <i>Repeat Results</i> in a <b>Dictionary</b> with
+        <code>version</code> = 1, <code>generated_at</code> = current date (ISO 8601),
+        <code>source</code> = <code>shortcut</code>, and <code>reminders</code> = the
+        repeat results.</li>
+      <li><b>Base64 Encode</b> that dictionary&rsquo;s text, with <i>Line Breaks</i> set
+        to <i>None</i>.</li>
+      <li><b>Get Contents of URL</b> &mdash; <code>GET</code>
+        <code class="wrap">https://api.github.com/repos/&lt;owner&gt;/&lt;repo&gt;/contents/data/reminders.json?ref=main</code>
+        with headers <code>Authorization: Bearer &lt;token&gt;</code> and
+        <code>Accept: application/vnd.github+json</code>. Take
+        <b>Get Dictionary Value</b> <code>sha</code> from the response &mdash; GitHub
+        requires the previous blob SHA to overwrite a file.</li>
+      <li><b>Get Contents of URL</b> &mdash; <code>PUT</code> to the same URL (without
+        <code>?ref=</code>), same headers, JSON body:
+        <code>message</code> = <code>Update reminders snapshot</code>,
+        <code>content</code> = the Base64 text,
+        <code>sha</code> = the SHA from the previous step,
+        <code>branch</code> = <code>main</code>.</li>
+    </ol>
+
+    <h3>Token</h3>
+    <p>Use a fine-grained personal access token scoped to this one repository with
+      <i>Contents: Read and write</i> and nothing else. It lives inside the Shortcut on
+      your device; anyone with the phone can read it, so keep the scope tight and rotate
+      it if the phone is lost.</p>
+
+    <h3>Running it hourly</h3>
+    <p>Manual runs work today. For a schedule, add a <b>Personal Automation</b> in the
+      Shortcuts app (<i>Time of Day</i>, repeat hourly) that runs the shortcut, and turn
+      <i>Ask Before Running</i> off so it fires unattended. iOS will not run it more
+      often than every hour; for anything faster you would need a Mac (a
+      <code>launchd</code> job running <code>shortcuts run</code>) or a backend that
+      talks to iCloud CalDAV directly.</p>
+
+    <h3>Freshness</h3>
+    <p>The <i>Pages</i> source below is this site&rsquo;s own copy of the file. It is
+      served through a CDN, so a fresh commit can take a few minutes to appear, and it
+      only updates after Pages rebuilds. The <i>Raw</i> source reads the committed file
+      straight from GitHub, which reflects a push within seconds &mdash; better once the
+      shortcut runs on a schedule.</p>
+    <p><a href="../">&larr; Back to the site</a></p>
+  </section>
+</template>
+
+<footer>
+  <label for="src">Source</label>
+  <select id="src">
+    <option value="pages">Pages copy</option>
+    <option value="raw">Raw (freshest)</option>
+  </select>
+  <span id="stamp" class="stamp"></span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
