@@ -44,7 +44,7 @@
       <code>api.github.com</code>.</p>
     <form id="settings-form" class="form">
       <label>Data repo <small>owner/name</small>
-        <input id="f-repo" type="text" placeholder="ideal-knee/reminders-data"
+        <input id="f-repo" type="text" placeholder="ideal-knee/reminder-data"
                autocapitalize="none" autocorrect="off" spellcheck="false">
       </label>
       <label>File path
@@ -81,9 +81,10 @@
       one &mdash; reads that file through the GitHub API with a read-only token.</p>
 
     <h3>1. The private data repo</h3>
-    <p>Create an empty private repo (e.g. <code>reminders-data</code>) and commit a
-      placeholder <code>reminders.json</code> containing <code>{}</code>. The GitHub
-      contents API needs the file to exist before it can be updated in place.</p>
+    <p>A private repo holds the snapshot and nothing else &mdash; here that is
+      <code>ideal-knee/reminder-data</code>, with a placeholder
+      <code>reminders.json</code> already committed at the root. The GitHub contents API
+      needs the file to exist before it can be updated in place.</p>
 
     <h3>2. Two tokens</h3>
     <p>Both fine-grained, both scoped to only the data repo:</p>
@@ -110,7 +111,7 @@
       <li><b>Base64 Encode</b> that dictionary&rsquo;s text, with <i>Line Breaks</i> set
         to <i>None</i>.</li>
       <li><b>Get Contents of URL</b> &mdash; <code>GET</code>
-        <code class="wrap">https://api.github.com/repos/&lt;owner&gt;/reminders-data/contents/reminders.json?ref=main</code>
+        <code class="wrap">https://api.github.com/repos/ideal-knee/reminder-data/contents/reminders.json?ref=main</code>
         with headers <code>Authorization: Bearer &lt;write token&gt;</code> and
         <code>Accept: application/vnd.github+json</code>. Take <b>Get Dictionary
         Value</b> <code>sha</code> from the response &mdash; GitHub requires the previous

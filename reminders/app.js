@@ -2,7 +2,7 @@
    The page itself is public, so the read-only token lives in localStorage per device. */
 
 const STORE_KEY = 'reminders-config';
-const DEFAULTS = { repo: '', path: 'reminders.json', branch: 'main', token: '' };
+const DEFAULTS = { repo: 'ideal-knee/reminder-data', path: 'reminders.json', branch: 'main', token: '' };
 
 const state = {
   config: loadConfig(),
