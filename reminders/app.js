@@ -256,6 +256,180 @@ function mountList(showCompleted) {
   renderItems(showCompleted);
 }
 
+/* ---------- stats view ---------- */
+
+const DAY = 86400000;
+const CHART_DAYS = 14;
+
+function median(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function humanDuration(ms) {
+  if (ms === null) return '\u2014';
+  const hours = ms / 3600000;
+  if (hours < 1) return `${Math.round(ms / 60000)}m`;
+  if (hours < 48) return `${hours.toFixed(1)}h`;
+  return `${(hours / 24).toFixed(1)}d`;
+}
+
+function summarize(reminders) {
+  const now = new Date();
+  const done = reminders.filter(r => r.completed);
+  const open = reminders.filter(r => !r.completed);
+
+  // Each metric uses only the rows carrying the dates it needs, so a snapshot
+  // missing `created` still yields completion and punctuality numbers.
+  const judged = done.filter(r => parseDate(r.completed_at) && parseDate(r.due));
+  const late = judged.filter(r => parseDate(r.completed_at) > parseDate(r.due));
+  const ages = done
+    .map(r => [parseDate(r.created), parseDate(r.completed_at)])
+    .filter(([c, d]) => c && d)
+    .map(([c, d]) => d - c);
+  const openAges = open
+    .map(r => parseDate(r.created))
+    .filter(Boolean)
+    .map(c => now - c);
+
+  return {
+    total: reminders.length,
+    open: open.length,
+    done: done.length,
+    overdue: open.filter(r => parseDate(r.due) && parseDate(r.due) < now).length,
+    completionRate: reminders.length ? done.length / reminders.length : null,
+    onTimeRate: judged.length ? 1 - late.length / judged.length : null,
+    judged: judged.length,
+    medianTimeToDone: median(ages),
+    medianOpenAge: median(openAges),
+    missing: {
+      created: reminders.filter(r => !parseDate(r.created)).length,
+      completedAt: done.filter(r => !parseDate(r.completed_at)).length
+    }
+  };
+}
+
+function completionsByDay(reminders, days) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const buckets = [];
+  for (let i = days - 1; i >= 0; i--) {
+    buckets.push({ date: new Date(start - i * DAY), count: 0 });
+  }
+  for (const r of reminders) {
+    const at = parseDate(r.completed_at);
+    if (!at) continue;
+    const index = Math.floor((at - buckets[0].date) / DAY);
+    if (index >= 0 && index < buckets.length) buckets[index].count++;
+  }
+  return buckets;
+}
+
+function byList(reminders) {
+  const now = new Date();
+  const groups = new Map();
+  for (const r of reminders) {
+    const name = r.list || '(no list)';
+    if (!groups.has(name)) groups.set(name, { name, open: 0, done: 0, late: 0, ages: [] });
+    const g = groups.get(name);
+    const completedAt = parseDate(r.completed_at);
+    const created = parseDate(r.created);
+    if (r.completed) {
+      g.done++;
+      const due = parseDate(r.due);
+      if (completedAt && due && completedAt > due) g.late++;
+      if (created && completedAt) g.ages.push(completedAt - created);
+    } else {
+      g.open++;
+      if (created) g.ages.push(now - created);
+    }
+  }
+  return [...groups.values()].sort((a, b) => b.open + b.done - (a.open + a.done));
+}
+
+function card(label, value, hint) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  const strong = document.createElement('b');
+  strong.textContent = value;
+  const span = document.createElement('span');
+  span.textContent = label;
+  el.append(strong, span);
+  if (hint) el.title = hint;
+  return el;
+}
+
+function percent(rate) {
+  return rate === null ? '\u2014' : `${Math.round(rate * 100)}%`;
+}
+
+function mountStats() {
+  const status = document.getElementById('stats-status');
+  const reminders = (state.data && state.data.reminders) || [];
+
+  status.classList.remove('error');
+  if (state.loading) {
+    status.textContent = 'Loading\u2026';
+  } else if (state.error) {
+    status.textContent = `Could not load the snapshot \u2014 ${state.error}`;
+    status.classList.add('error');
+  } else if (state.demo) {
+    status.innerHTML = 'Sample data. <a href="#/settings">Connect your private repo</a> for real numbers.';
+  } else {
+    status.textContent = '';
+  }
+
+  const s = summarize(reminders);
+  document.getElementById('cards').append(
+    card('open', s.open),
+    card('overdue', s.overdue),
+    card('completed', s.done),
+    card('completion rate', percent(s.completionRate)),
+    card('on time', percent(s.onTimeRate), `of the ${s.judged} completed items that had a due date`),
+    card('median time to done', humanDuration(s.medianTimeToDone)),
+    card('median age, open', humanDuration(s.medianOpenAge))
+  );
+
+  const buckets = completionsByDay(reminders, CHART_DAYS);
+  const peak = Math.max(1, ...buckets.map(b => b.count));
+  const chart = document.getElementById('chart');
+  for (const b of buckets) {
+    const col = document.createElement('div');
+    col.className = 'bar';
+    col.style.setProperty('--h', `${(b.count / peak) * 100}%`);
+    col.title = `${b.date.toLocaleDateString()}: ${b.count}`;
+    const n = document.createElement('span');
+    n.textContent = b.count || '';
+    col.appendChild(n);
+    chart.appendChild(col);
+  }
+  const fmt = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  document.getElementById('chart-range').textContent =
+    `${fmt(buckets[0].date)} \u2013 ${fmt(buckets[buckets.length - 1].date)}`;
+
+  const tbody = document.querySelector('#by-list tbody');
+  for (const g of byList(reminders)) {
+    const tr = document.createElement('tr');
+    for (const value of [g.name, g.open, g.done, g.late, humanDuration(median(g.ages))]) {
+      const td = document.createElement('td');
+      td.textContent = value;
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+
+  const gaps = [];
+  if (s.missing.created) gaps.push(`${s.missing.created} without a "created" date`);
+  if (s.missing.completedAt) gaps.push(`${s.missing.completedAt} completed without a "completed_at" date`);
+  const gapsEl = document.getElementById('stats-gaps');
+  gapsEl.hidden = gaps.length === 0;
+  gapsEl.textContent = gaps.length
+    ? `Age and punctuality figures skip rows missing dates: ${gaps.join(', ')}. The Setup tab lists the Shortcut fields that fill them in.`
+    : '';
+}
+
 /* ---------- settings view ---------- */
 
 function mountSettings() {
@@ -374,10 +548,11 @@ function mountGate() {
 
 function currentRoute() {
   const r = location.hash.replace(/^#/, '');
-  return ['/open', '/all', '/settings', '/setup'].includes(r) ? r : '/open';
+  return ['/open', '/all', '/stats', '/settings', '/setup'].includes(r) ? r : '/open';
 }
 
 function templateFor(route) {
+  if (route === '/stats') return 'tpl-stats';
   if (route === '/settings') return 'tpl-settings';
   if (route === '/setup') return 'tpl-setup';
   return 'tpl-list';
@@ -393,7 +568,8 @@ function render() {
 
   view.replaceChildren(document.getElementById(templateFor(route)).content.cloneNode(true));
 
-  if (route === '/settings') mountSettings();
+  if (route === '/stats') mountStats();
+  else if (route === '/settings') mountSettings();
   else if (route !== '/setup') mountList(route === '/all');
 
   if (locked()) modeTag.textContent = 'locked';

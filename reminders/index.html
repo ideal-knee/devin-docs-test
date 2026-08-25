@@ -15,6 +15,7 @@
   <nav>
     <a href="#/open" data-route="/open">Open</a>
     <a href="#/all" data-route="/all">All</a>
+    <a href="#/stats" data-route="/stats">Stats</a>
     <a href="#/settings" data-route="/settings">Settings</a>
     <a href="#/setup" data-route="/setup">Setup</a>
   </nav>
@@ -32,6 +33,23 @@
     <p id="status" class="status"></p>
     <ul id="items" class="items"></ul>
     <p id="empty" class="empty" hidden>Nothing here.</p>
+  </section>
+</template>
+
+<template id="tpl-stats">
+  <section class="screen">
+    <p id="stats-status" class="status"></p>
+    <div id="cards" class="cards"></div>
+    <h3 class="chart-title">Completed per day <small id="chart-range"></small></h3>
+    <div id="chart" class="chart"></div>
+    <h3 class="chart-title">By list</h3>
+    <table id="by-list" class="table">
+      <thead>
+        <tr><th>List</th><th>Open</th><th>Done</th><th>Late</th><th>Median age</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p id="stats-gaps" class="warn-note" hidden></p>
   </section>
 </template>
 
@@ -108,11 +126,17 @@
         <i>No</i>), sort by due date.</li>
       <li><b>Repeat with Each</b> over the result. Inside, add a <b>Dictionary</b> with
         keys <code>id</code>, <code>title</code>, <code>list</code>, <code>notes</code>,
-        <code>due</code>, <code>priority</code>, <code>flagged</code>,
-        <code>completed</code>, filling each from the <i>Repeat Item</i> magic variable.
-        Format <code>due</code> as ISO 8601.</li>
+        <code>created</code>, <code>due</code>, <code>completed_at</code>,
+        <code>priority</code>, <code>flagged</code>, <code>completed</code>, filling each
+        from the <i>Repeat Item</i> magic variable. Format every date as ISO 8601.
+        <br><b>For the Stats tab:</b> <code>completed_at</code> comes from the
+        <i>Completion Date</i> detail, and <code>created</code> from <i>Creation
+        Date</i> if your version of the action offers it &mdash; leave it out and the
+        age-based figures simply drop away. Also make sure <b>Find Reminders</b> is
+        <i>not</i> filtering completed items out, or finished work never reaches the
+        snapshot.</li>
       <li>After the loop, wrap the <i>Repeat Results</i> in a <b>Dictionary</b> with
-        <code>version</code> = 1, <code>generated_at</code> = current date (ISO 8601),
+        <code>version</code> = 2, <code>generated_at</code> = current date (ISO 8601),
         <code>source</code> = <code>shortcut</code>, and <code>reminders</code> = the
         repeat results.</li>
       <li><b>Base64 Encode</b> that dictionary&rsquo;s text, with <i>Line Breaks</i> set

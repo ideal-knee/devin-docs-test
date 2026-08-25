@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "generated_at": "2026-08-25T11:00:00Z",
   "source": "sample",
   "reminders": [
@@ -8,7 +8,9 @@
       "title": "Buy chainsaw bar oil",
       "list": "Errands",
       "notes": "The hardware store on Route 9 carries it.",
+      "created": "2026-08-20T14:12:00Z",
       "due": "2026-08-26T17:00:00Z",
+      "completed_at": null,
       "priority": 1,
       "flagged": true,
       "completed": false
@@ -18,7 +20,9 @@
       "title": "Email the surveyor",
       "list": "Work",
       "notes": "",
+      "created": "2026-08-24T09:03:00Z",
       "due": "2026-08-25T20:30:00Z",
+      "completed_at": null,
       "priority": 0,
       "flagged": false,
       "completed": false
@@ -28,7 +32,9 @@
       "title": "Split the rest of the woodpile",
       "list": "Home",
       "notes": "",
+      "created": "2026-08-02T18:40:00Z",
       "due": null,
+      "completed_at": null,
       "priority": 0,
       "flagged": false,
       "completed": false
@@ -38,8 +44,106 @@
       "title": "Return the borrowed hatchet",
       "list": "Home",
       "notes": "",
+      "created": "2026-08-18T12:00:00Z",
       "due": "2026-08-22T14:00:00Z",
+      "completed_at": "2026-08-24T16:20:00Z",
       "priority": 2,
+      "flagged": false,
+      "completed": true
+    },
+    {
+      "id": "sample-5",
+      "title": "Renew the truck registration",
+      "list": "Errands",
+      "notes": "",
+      "created": "2026-08-10T08:15:00Z",
+      "due": "2026-08-19T12:00:00Z",
+      "completed_at": "2026-08-19T10:05:00Z",
+      "priority": 1,
+      "flagged": false,
+      "completed": true
+    },
+    {
+      "id": "sample-6",
+      "title": "Draft the quarterly summary",
+      "list": "Work",
+      "notes": "Pull numbers from the shared sheet first.",
+      "created": "2026-08-11T13:30:00Z",
+      "due": "2026-08-21T17:00:00Z",
+      "completed_at": "2026-08-21T15:45:00Z",
+      "priority": 0,
+      "flagged": false,
+      "completed": true
+    },
+    {
+      "id": "sample-7",
+      "title": "Call the well company",
+      "list": "Home",
+      "notes": "",
+      "created": "2026-08-14T07:50:00Z",
+      "due": "2026-08-17T15:00:00Z",
+      "completed_at": "2026-08-23T09:10:00Z",
+      "priority": 2,
+      "flagged": true,
+      "completed": true
+    },
+    {
+      "id": "sample-8",
+      "title": "Order replacement chain",
+      "list": "Errands",
+      "notes": "",
+      "created": "2026-08-21T19:22:00Z",
+      "due": "2026-08-23T12:00:00Z",
+      "completed_at": "2026-08-22T20:00:00Z",
+      "priority": 0,
+      "flagged": false,
+      "completed": true
+    },
+    {
+      "id": "sample-9",
+      "title": "Book the dentist",
+      "list": "Errands",
+      "notes": "",
+      "created": "2026-07-28T10:00:00Z",
+      "due": "2026-08-14T09:00:00Z",
+      "completed_at": null,
+      "priority": 0,
+      "flagged": false,
+      "completed": false
+    },
+    {
+      "id": "sample-10",
+      "title": "Review the survey markers",
+      "list": "Work",
+      "notes": "",
+      "created": "2026-08-19T11:11:00Z",
+      "due": "2026-08-24T17:00:00Z",
+      "completed_at": "2026-08-24T13:02:00Z",
+      "priority": 0,
+      "flagged": false,
+      "completed": true
+    },
+    {
+      "id": "sample-11",
+      "title": "Stack the split wood under cover",
+      "list": "Home",
+      "notes": "",
+      "created": "2026-08-22T16:05:00Z",
+      "due": "2026-08-25T18:00:00Z",
+      "completed_at": "2026-08-25T08:40:00Z",
+      "priority": 0,
+      "flagged": false,
+      "completed": true
+    },
+    {
+      "id": "sample-12",
+      "title": "Sharpen the axe",
+      "list": "Home",
+      "notes": "",
+      "created": "2026-08-23T09:30:00Z",
+      "due": null,
+      "completed_at": "2026-08-25T07:15:00Z",
+      "priority": 0,
       "flagged": false,
       "completed": true
     }
