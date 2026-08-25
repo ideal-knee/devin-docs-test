@@ -15,6 +15,7 @@
   <nav>
     <a href="#/open" data-route="/open">Open</a>
     <a href="#/all" data-route="/all">All</a>
+    <a href="#/settings" data-route="/settings">Settings</a>
     <a href="#/setup" data-route="/setup">Setup</a>
   </nav>
 </header>
@@ -34,15 +35,66 @@
   </section>
 </template>
 
+<template id="tpl-settings">
+  <section class="screen prose">
+    <h2>Private data repo</h2>
+    <p>This page is public; your reminders are not. Point it at a private repository
+      that the Shortcut writes to, and give it a read-only token. Both stay in this
+      browser&rsquo;s <code>localStorage</code> and are never sent anywhere except
+      <code>api.github.com</code>.</p>
+    <form id="settings-form" class="form">
+      <label>Data repo <small>owner/name</small>
+        <input id="f-repo" type="text" placeholder="ideal-knee/reminders-data"
+               autocapitalize="none" autocorrect="off" spellcheck="false">
+      </label>
+      <label>File path
+        <input id="f-path" type="text" placeholder="reminders.json"
+               autocapitalize="none" autocorrect="off" spellcheck="false">
+      </label>
+      <label>Branch
+        <input id="f-branch" type="text" placeholder="main"
+               autocapitalize="none" autocorrect="off" spellcheck="false">
+      </label>
+      <label>Read-only token
+        <input id="f-token" type="password" placeholder="github_pat_&hellip;"
+               autocapitalize="none" autocorrect="off" spellcheck="false">
+      </label>
+      <div class="row">
+        <button type="submit">Save &amp; load</button>
+        <button type="button" id="f-clear" class="ghost">Forget token</button>
+      </div>
+      <p id="settings-msg" class="status"></p>
+    </form>
+    <p class="warn-note">Anyone who can unlock this device can read the token out of
+      the browser. Scope it to the data repo with <i>Contents: Read-only</i> and nothing
+      else, and revoke it if the device goes missing.</p>
+  </section>
+</template>
+
 <template id="tpl-setup">
   <section class="screen prose">
     <h2>How the data gets here</h2>
     <p>Safari cannot read Apple Reminders &mdash; there is no web API for it, and
       iCloud&rsquo;s CalDAV endpoint blocks cross-origin browser requests. So the phone
       pushes instead of the page pulling: an iOS Shortcut reads Reminders and commits a
-      JSON snapshot to this repo, and this page fetches that file.</p>
+      JSON snapshot to a <b>private</b> repo, and this page &mdash; served from a public
+      one &mdash; reads that file through the GitHub API with a read-only token.</p>
 
-    <h3>Build the Shortcut</h3>
+    <h3>1. The private data repo</h3>
+    <p>Create an empty private repo (e.g. <code>reminders-data</code>) and commit a
+      placeholder <code>reminders.json</code> containing <code>{}</code>. The GitHub
+      contents API needs the file to exist before it can be updated in place.</p>
+
+    <h3>2. Two tokens</h3>
+    <p>Both fine-grained, both scoped to only the data repo:</p>
+    <ul>
+      <li><b>Write token</b> &mdash; <i>Contents: Read and write</i>. Lives in the
+        Shortcut on your phone.</li>
+      <li><b>Read token</b> &mdash; <i>Contents: Read-only</i>. Pasted into
+        <a href="#/settings">Settings</a> on each device that views this page.</li>
+    </ul>
+
+    <h3>3. Build the Shortcut</h3>
     <ol>
       <li><b>Find Reminders</b> &mdash; filter as you like (e.g. <i>Is Completed</i> is
         <i>No</i>), sort by due date.</li>
@@ -58,11 +110,11 @@
       <li><b>Base64 Encode</b> that dictionary&rsquo;s text, with <i>Line Breaks</i> set
         to <i>None</i>.</li>
       <li><b>Get Contents of URL</b> &mdash; <code>GET</code>
-        <code class="wrap">https://api.github.com/repos/&lt;owner&gt;/&lt;repo&gt;/contents/data/reminders.json?ref=main</code>
-        with headers <code>Authorization: Bearer &lt;token&gt;</code> and
-        <code>Accept: application/vnd.github+json</code>. Take
-        <b>Get Dictionary Value</b> <code>sha</code> from the response &mdash; GitHub
-        requires the previous blob SHA to overwrite a file.</li>
+        <code class="wrap">https://api.github.com/repos/&lt;owner&gt;/reminders-data/contents/reminders.json?ref=main</code>
+        with headers <code>Authorization: Bearer &lt;write token&gt;</code> and
+        <code>Accept: application/vnd.github+json</code>. Take <b>Get Dictionary
+        Value</b> <code>sha</code> from the response &mdash; GitHub requires the previous
+        blob SHA to overwrite a file.</li>
       <li><b>Get Contents of URL</b> &mdash; <code>PUT</code> to the same URL (without
         <code>?ref=</code>), same headers, JSON body:
         <code>message</code> = <code>Update reminders snapshot</code>,
@@ -71,13 +123,7 @@
         <code>branch</code> = <code>main</code>.</li>
     </ol>
 
-    <h3>Token</h3>
-    <p>Use a fine-grained personal access token scoped to this one repository with
-      <i>Contents: Read and write</i> and nothing else. It lives inside the Shortcut on
-      your device; anyone with the phone can read it, so keep the scope tight and rotate
-      it if the phone is lost.</p>
-
-    <h3>Running it hourly</h3>
+    <h3>4. Running it hourly</h3>
     <p>Manual runs work today. For a schedule, add a <b>Personal Automation</b> in the
       Shortcuts app (<i>Time of Day</i>, repeat hourly) that runs the shortcut, and turn
       <i>Ask Before Running</i> off so it fires unattended. iOS will not run it more
@@ -85,22 +131,17 @@
       <code>launchd</code> job running <code>shortcuts run</code>) or a backend that
       talks to iCloud CalDAV directly.</p>
 
-    <h3>Freshness</h3>
-    <p>The <i>Pages</i> source below is this site&rsquo;s own copy of the file. It is
-      served through a CDN, so a fresh commit can take a few minutes to appear, and it
-      only updates after Pages rebuilds. The <i>Raw</i> source reads the committed file
-      straight from GitHub, which reflects a push within seconds &mdash; better once the
-      shortcut runs on a schedule.</p>
+    <h3>Why not just make this repo private?</h3>
+    <p>A private repo can host Pages on a paid plan, but the published site is still
+      public to anyone with the URL unless the repo belongs to a GitHub Enterprise Cloud
+      organization. Splitting the data into its own private repo keeps the snapshot off
+      the public web without depending on that.</p>
     <p><a href="../">&larr; Back to the site</a></p>
   </section>
 </template>
 
 <footer>
-  <label for="src">Source</label>
-  <select id="src">
-    <option value="pages">Pages copy</option>
-    <option value="raw">Raw (freshest)</option>
-  </select>
+  <span id="mode" class="tag"></span>
   <span id="stamp" class="stamp"></span>
 </footer>
 
