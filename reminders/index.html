@@ -76,6 +76,10 @@
       <label>Read-only token
         <input id="f-token" type="password" placeholder="github_pat_&hellip;"
                autocapitalize="none" autocorrect="off" spellcheck="false">
+        <small><a href="https://github.com/settings/personal-access-tokens/new"
+           target="_blank" rel="noopener">Create a fine-grained token</a> &mdash; under
+          <i>Repository access</i> pick only your data repo, then <i>Repository
+          permissions &rarr; Contents &rarr; Read-only</i>.</small>
       </label>
       <label>Passcode <small>optional &mdash; encrypts the stored token</small>
         <input id="f-pass" type="password" placeholder="leave blank to store in plain text"
@@ -119,6 +123,9 @@
       <li><b>Read token</b> &mdash; <i>Contents: Read-only</i>. Pasted into
         <a href="#/settings">Settings</a> on each device that views this page.</li>
     </ul>
+    <p>Create either one at
+      <a href="https://github.com/settings/personal-access-tokens/new"
+         target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</p>
 
     <h3>3. Build the Shortcut</h3>
     <ol>
