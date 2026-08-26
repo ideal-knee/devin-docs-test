@@ -108,6 +108,9 @@
       pushes instead of the page pulling: an iOS Shortcut reads Reminders and commits a
       JSON snapshot to a <b>private</b> repo, and this page &mdash; served from a public
       one &mdash; reads that file through the GitHub API with a read-only token.</p>
+    <p>Each run replaces the whole file, so what you see here is one snapshot, not a
+      running log &mdash; and if you narrow the search in 3b, <i>All</i> means all of
+      that window rather than your entire library.</p>
 
     <h3>1. The private data repo</h3>
     <p>A private repo holds the snapshot and nothing else &mdash; here that is
@@ -152,17 +155,35 @@
     </ol>
 
     <h4>3b. Read the reminders</h4>
+    <p>Every snapshot carries every reminder it finds, so the size of that set decides
+      how long the shortcut runs and how big the upload is. A library of a few hundred
+      can go across whole; a library of tens of thousands cannot &mdash; the loop in 3c
+      would take an unreasonable amount of time, a background automation would likely be
+      killed before finishing, and the JSON would outgrow what the upload step handles.</p>
+    <p>So collect a rolling window instead: everything still open, plus whatever was
+      completed recently. Nothing on the Stats tab looks back more than a couple of
+      weeks, so a 90-day window loses nothing you can see. Shortcuts combines filters
+      with <i>and</i>, and &ldquo;open <i>or</i> recently completed&rdquo; is an
+      <i>or</i>, which is why this takes two search actions rather than one.</p>
     <ol>
-      <li>Add <b>Find Reminders</b>. Leave it with <i>no</i> filters at all &mdash; if it
-        arrived with <i>Is Completed</i> is <i>No</i>, swipe that row away, or the Stats
-        tab will never see a single completed item.</li>
-      <li>Optionally tap <b>Sort by</b> and choose <i>Due Date</i>. Order does not matter
-        to this page, but it makes the shortcut&rsquo;s own preview easier to read.</li>
-      <li>Add <b>Repeat with Each</b>. It should already say <i>Repeat with each item in
-        Reminders</i>; if it does not, tap its input field and pick the
-        <i>Reminders</i> variable. Everything in the next step goes <i>inside</i> this
-        loop, between <i>Repeat with Each</i> and <i>End Repeat</i>.</li>
+      <li>Add <b>Find Reminders</b>, and add one filter: <i>Is Completed</i> is
+        <i>No</i>. Below it, <b>Set Variable</b> to a new variable called
+        <code>rows</code>.</li>
+      <li>Add a second <b>Find Reminders</b> with two filters: <i>Is Completed</i> is
+        <i>Yes</i>, and <i>Completion Date</i> <i>is in the last</i> <b>90 days</b>.
+        Below it, <b>Add to Variable</b> <code>rows</code>. (If your version offers no
+        <i>Completion Date</i> filter, use <i>Due Date</i> <i>is in the last</i> 90 days
+        &mdash; a rougher cut, but it keeps the count down.)</li>
+      <li>Add <b>Repeat with Each</b> and set its input to the <code>rows</code>
+        variable. Everything in the next step goes <i>inside</i> this loop, between
+        <i>Repeat with Each</i> and <i>End Repeat</i>.</li>
     </ol>
+    <p>Before the first full run, put a <b>Limit</b> of 500 on the first search and time
+      it &mdash; that tells you what your device does per item, and multiplying up says
+      whether your real window is minutes or hours. Widen or narrow the 90 days from
+      there.</p>
+    <p class="warn-note">Whatever you do, do not filter completed reminders out
+      altogether. Every completion-based figure on the Stats tab comes from them.</p>
 
     <h4>3c. Turn each reminder into a row</h4>
     <ol>
@@ -211,7 +232,10 @@
         variable formatted as <i>ISO 8601</i>, and <code>reminders</code> = the
         <b>Repeat Results</b> variable. Set the <code>reminders</code> row&rsquo;s type
         to <b>Array</b> so the rows stay a list.</li>
-      <li>Add <b>Base64 Encode</b> and point it at that dictionary. Tap <b>Show More</b>
+      <li>Add <b>Base64 Encode</b> and point it at <i>that</i> dictionary &mdash; the
+        four-key one you just made, not <b>Repeat Results</b>. Encoding the repeat
+        results uploads the bare rows without the wrapper, and this page will not read
+        it. Tap <b>Show More</b>
         and set <i>Line Breaks</i> to <b>None</b> &mdash; GitHub rejects wrapped Base64.
         If the action refuses a dictionary as input, put a <b>Get Text from Input</b>
         action in front of it.</li>
@@ -257,6 +281,13 @@
         action inside the loop (step 3c). If it persists, replace the Dictionary with a
         <b>Text</b> action holding the JSON for one row, with the properties dropped in
         as variables, and put <b>Get Dictionary from Input</b> after that.</li>
+      <li><i>&ldquo;cannot parse response&rdquo;</i> on a <b>Get Contents of URL</b>
+        &mdash; the request itself came back malformed, so nothing downstream runs and a
+        <b>Quick Look</b> after it will never fire. Check for a blank header row (an
+        empty <i>Key</i> leaves the request malformed) and make sure <i>Request Body</i>
+        is <b>None</b> on the GET. To isolate it, point the same action at
+        <code>https://api.github.com/rate_limit</code>: if that parses, the headers are
+        fine and the problem is the repo path or the token&rsquo;s scope.</li>
       <li><i>Base64 Encode</i> refusing its input &mdash; put <b>Get Text from Input</b>
         in front of it.</li>
     </ul>
