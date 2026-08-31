@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.ideal-knee.export-reminders</string>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/dkee/Development/ideal-knee/devin-docs-test</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/dkee/Development/ideal-knee/devin-docs-test/.venv/bin/python</string>
+    <string>/Users/dkee/Development/ideal-knee/devin-docs-test/reminders/export_reminders_to_github.py</string>
+    <string>--token-keychain</string>
+    <string>reminders-export</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>3600</integer>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/dkee/Development/ideal-knee/devin-docs-test/reminders/export-reminders.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/dkee/Development/ideal-knee/devin-docs-test/reminders/export-reminders.log</string>
+</dict>
+</plist>

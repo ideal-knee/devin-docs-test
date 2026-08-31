@@ -4,7 +4,7 @@
 const STORE_KEY = 'reminders-config';
 const DEFAULTS = {
   repo: 'ideal-knee/reminder-data',
-  path: 'reminders.json',
+  path: 'reminders.yaml',
   branch: 'main',
   token: '',   // plain text, only when no passcode is set
   enc: null    // { salt, iv, ct } base64, when a passcode is set
@@ -110,7 +110,7 @@ async function fetchSnapshot() {
   if (res.status === 403) throw new Error('forbidden (403) — token lacks Contents: Read on this repo');
   if (res.status === 404) throw new Error('not found (404) — check the repo, branch and file path');
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  return parseSnapshot(await res.text());
 }
 
 async function load() {
@@ -128,10 +128,9 @@ async function load() {
       state.data = await fetchSnapshot();
     } else {
       state.demo = true;
-      const res = await fetch('sample.json', { cache: 'no-store' });
-      state.data = await res.json();
+      const res = await fetch('sample.yaml', { cache: 'no-store' });
+      state.data = parseSnapshot(await res.text());
     }
-    if (!Array.isArray(state.data.reminders)) throw new Error('no "reminders" array in the JSON');
   } catch (err) {
     state.error = err.message;
   } finally {
@@ -146,6 +145,14 @@ function parseDate(value) {
   if (!value) return null;
   const d = new Date(value);
   return isNaN(d) ? null : d;
+}
+
+function parseSnapshot(text) {
+  const data = jsyaml.load(text);
+  if (!data || typeof data !== 'object' || !Array.isArray(data.reminders)) {
+    throw new Error('snapshot is not valid reminders YAML');
+  }
+  return data;
 }
 
 function dueLabel(d) {
@@ -430,6 +437,147 @@ function mountStats() {
     : '';
 }
 
+/* ---------- dashboard view ---------- */
+
+function recentlyCompleted(reminders, n) {
+  return reminders
+    .filter(r => r.completed && parseDate(r.completed_at))
+    .sort((a, b) => parseDate(b.completed_at) - parseDate(a.completed_at))
+    .slice(0, n);
+}
+
+function startOfDay(d) {
+  const s = new Date(d);
+  s.setHours(0, 0, 0, 0);
+  return s;
+}
+
+function completedToday(reminders) {
+  const start = startOfDay(new Date());
+  return reminders.filter(r => {
+    const at = parseDate(r.completed_at);
+    return at && at >= start;
+  }).length;
+}
+
+function completedWithinDays(reminders, days) {
+  const now = new Date();
+  return reminders.filter(r => {
+    const at = parseDate(r.completed_at);
+    return at && (now - at) <= days * DAY;
+  }).length;
+}
+
+function monthRanking(reminders, monthsBack) {
+  const now = new Date();
+  const counts = new Map();
+  const labels = new Map();
+  for (let i = 0; i < monthsBack; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    counts.set(key, 0);
+    labels.set(key, d.toLocaleString(undefined, { year: 'numeric', month: 'short' }));
+  }
+  for (const r of reminders) {
+    const at = parseDate(r.completed_at);
+    if (!at) continue;
+    const key = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}`;
+    if (counts.has(key)) counts.set(key, counts.get(key) + 1);
+  }
+  const ranked = [...counts.entries()]
+    .map(([key, count]) => ({ key, label: labels.get(key), count }))
+    .sort((a, b) => b.count - a.count || b.key.localeCompare(a.key));
+  return ranked.map((r, i) => ({ ...r, rank: i + 1 }));
+}
+
+function openAgeBuckets(reminders) {
+  const now = new Date();
+  const buckets = { total: 0, '0-1 day': 0, '1-7 days': 0, '8-30 days': 0, '>30 days': 0 };
+  for (const r of reminders) {
+    if (r.completed) continue;
+    const created = parseDate(r.created);
+    if (!created) continue;
+    const age = (now - created) / DAY;
+    buckets.total++;
+    if (age <= 1) buckets['0-1 day']++;
+    else if (age <= 7) buckets['1-7 days']++;
+    else if (age <= 30) buckets['8-30 days']++;
+    else buckets['>30 days']++;
+  }
+  return buckets;
+}
+
+function mountDashboard() {
+  const status = document.getElementById('dashboard-status');
+  const reminders = (state.data && state.data.reminders) || [];
+
+  status.classList.remove('error');
+  if (state.loading) {
+    status.textContent = 'Loading…';
+  } else if (state.error) {
+    status.textContent = `Could not load the snapshot — ${state.error}`;
+    status.classList.add('error');
+  } else if (state.demo) {
+    status.innerHTML = 'Sample data. <a href="#/settings">Connect your private repo</a> for real numbers.';
+  } else {
+    status.textContent = '';
+  }
+
+  const completedCards = document.getElementById('completed-cards');
+  completedCards.append(
+    card('today', completedToday(reminders)),
+    card('last 7 days', completedWithinDays(reminders, 7)),
+    card('last 30 days', completedWithinDays(reminders, 30)),
+    card('total completed', reminders.filter(r => r.completed).length)
+  );
+
+  const age = openAgeBuckets(reminders);
+  const ageCards = document.getElementById('age-cards');
+  ageCards.append(
+    card('open', age.total),
+    card('0–1 day', age['0-1 day']),
+    card('1–7 days', age['1-7 days']),
+    card('8–30 days', age['8-30 days']),
+    card('>30 days', age['>30 days'])
+  );
+
+  const recent = document.getElementById('recent');
+  for (const r of recentlyCompleted(reminders, 8)) {
+    const li = document.createElement('li');
+    li.className = 'item done';
+
+    const title = document.createElement('span');
+    title.className = 'title';
+    title.textContent = r.title || '(untitled)';
+    li.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    const listSpan = document.createElement('span');
+    listSpan.className = 'tag';
+    listSpan.textContent = r.list || '(no list)';
+    meta.appendChild(listSpan);
+    const at = parseDate(r.completed_at);
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'tag';
+    dateSpan.textContent = at.toLocaleDateString();
+    meta.appendChild(dateSpan);
+    li.appendChild(meta);
+    recent.appendChild(li);
+  }
+
+  const tbody = document.querySelector('#month-rank tbody');
+  for (const m of monthRanking(reminders, 12)) {
+    const tr = document.createElement('tr');
+    for (const v of [m.label, m.count, m.rank]) {
+      const td = document.createElement('td');
+      td.textContent = String(v);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+}
+
 /* ---------- settings view ---------- */
 
 function mountSettings() {
@@ -548,11 +696,12 @@ function mountGate() {
 
 function currentRoute() {
   const r = location.hash.replace(/^#/, '');
-  return ['/open', '/all', '/stats', '/settings', '/setup'].includes(r) ? r : '/open';
+  return ['/open', '/all', '/stats', '/dashboard', '/settings', '/setup'].includes(r) ? r : '/open';
 }
 
 function templateFor(route) {
   if (route === '/stats') return 'tpl-stats';
+  if (route === '/dashboard') return 'tpl-dashboard';
   if (route === '/settings') return 'tpl-settings';
   if (route === '/setup') return 'tpl-setup';
   return 'tpl-list';
@@ -569,6 +718,7 @@ function render() {
   view.replaceChildren(document.getElementById(templateFor(route)).content.cloneNode(true));
 
   if (route === '/stats') mountStats();
+  else if (route === '/dashboard') mountDashboard();
   else if (route === '/settings') mountSettings();
   else if (route !== '/setup') mountList(route === '/all');
 

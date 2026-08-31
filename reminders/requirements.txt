@@ -1,0 +1,4 @@
+pyobjc-core==11.1
+pyobjc-framework-Cocoa==11.1
+pyobjc-framework-EventKit==11.1
+pyyaml

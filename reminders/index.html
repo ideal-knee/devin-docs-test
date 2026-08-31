@@ -16,6 +16,7 @@
     <a href="#/open" data-route="/open">Open</a>
     <a href="#/all" data-route="/all">All</a>
     <a href="#/stats" data-route="/stats">Stats</a>
+    <a href="#/dashboard" data-route="/dashboard">Dashboard</a>
     <a href="#/settings" data-route="/settings">Settings</a>
     <a href="#/setup" data-route="/setup">Setup</a>
   </nav>
@@ -53,11 +54,30 @@
   </section>
 </template>
 
+<template id="tpl-dashboard">
+  <section class="screen">
+    <p id="dashboard-status" class="status"></p>
+    <h3 class="chart-title">Completed</h3>
+    <div id="completed-cards" class="cards"></div>
+    <h3 class="chart-title">Open by age</h3>
+    <div id="age-cards" class="cards"></div>
+    <h3 class="chart-title">Recently completed</h3>
+    <ul id="recent" class="items"></ul>
+    <h3 class="chart-title">Months ranked by completions</h3>
+    <table id="month-rank" class="table">
+      <thead>
+        <tr><th>Month</th><th>Completed</th><th>Rank</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</template>
+
 <template id="tpl-settings">
   <section class="screen prose">
     <h2>Private data repo</h2>
     <p>This page is public; your reminders are not. Point it at a private repository
-      that the Shortcut writes to, and give it a read-only token. Both stay in this
+      that the exporter writes to, and give it a read-only token. Both stay in this
       browser&rsquo;s <code>localStorage</code> and are never sent anywhere except
       <code>api.github.com</code>.</p>
     <form id="settings-form" class="form">
@@ -66,7 +86,7 @@
                autocapitalize="none" autocorrect="off" spellcheck="false">
       </label>
       <label>File path
-        <input id="f-path" type="text" placeholder="reminders.json"
+        <input id="f-path" type="text" placeholder="reminders.yaml"
                autocapitalize="none" autocorrect="off" spellcheck="false">
       </label>
       <label>Branch
@@ -103,155 +123,48 @@
 <template id="tpl-setup">
   <section class="screen prose">
     <h2>How the data gets here</h2>
-    <p>Safari cannot read Apple Reminders &mdash; there is no web API for it, and
-      iCloud&rsquo;s CalDAV endpoint blocks cross-origin browser requests. So the phone
-      pushes instead of the page pulling: an iOS Shortcut reads Reminders and commits a
-      JSON snapshot to a <b>private</b> repo, and this page &mdash; served from a public
-      one &mdash; reads that file through the GitHub API with a read-only token.</p>
+    <p>This page is public; your reminders are not. A small macOS exporter reads
+      Apple Reminders through EventKit and pushes a YAML snapshot to a private
+      repository. This page then reads that file through the GitHub API with a
+      read-only token.</p>
 
-    <h3>1. The private data repo</h3>
-    <p>A private repo holds the snapshot and nothing else &mdash; here that is
-      <code>ideal-knee/reminder-data</code>, with a placeholder
-      <code>reminders.json</code> already committed at the root. The GitHub contents API
-      needs the file to exist before it can be updated in place.</p>
-
-    <h3>2. Two tokens</h3>
-    <p>Both fine-grained, both scoped to only the data repo:</p>
+    <h3>1. Private data repo and tokens</h3>
+    <p>Use a <b>private</b> repo that holds only the snapshot. You need two
+      fine-grained personal access tokens, both scoped to that repo:</p>
     <ul>
-      <li><b>Write token</b> &mdash; <i>Contents: Read and write</i>. Lives in the
-        Shortcut on your phone.</li>
+      <li><b>Write token</b> &mdash; <i>Contents: Read and write</i>. Stored in
+        macOS Keychain for the exporter.</li>
       <li><b>Read token</b> &mdash; <i>Contents: Read-only</i>. Pasted into
-        <a href="#/settings">Settings</a> on each device that views this page.</li>
+        <a href="#/settings">Settings</a> on each browser.</li>
     </ul>
-    <p>Create either one at
+    <p>Create them at
       <a href="https://github.com/settings/personal-access-tokens/new"
          target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</p>
 
-    <h3>3. Build the Shortcut</h3>
-    <p>Never built one before? A shortcut is just a vertical list of actions that run top
-      to bottom, each one feeding the next. You add actions by tapping <b>Add Action</b>
-      (or the search field at the bottom of the editor) and searching for them by name.
-      The whole thing takes about fifteen minutes; nothing here can damage your
-      reminders, since every action below only reads them.</p>
-    <p>Two ideas worth knowing before you start:</p>
-    <ul>
-      <li><b>Magic variables</b> are how one action uses an earlier action&rsquo;s output.
-        Tap a field, then tap the variable chip above the keyboard (or the wand-shaped
-        <i>Select Variable</i> button) and pick the action you want the value from.</li>
-      <li><b>Tapping a variable you already inserted</b> opens a detail popover. For a
-        reminder that popover lets you pick <i>which property</i> you want &mdash;
-        <i>Title</i>, <i>Due Date</i>, and so on &mdash; and for dates it offers a
-        <i>Date Format</i> option. This is how most of the fields below get filled.</li>
-    </ul>
+    <h3>2. Install the exporter</h3>
+    <p>In the repo root, create a virtualenv and install the requirements:</p>
+    <pre><code>python3 -m venv .venv
+.venv/bin/pip install -r reminders/requirements.txt</code></pre>
 
-    <h4>3a. Create it</h4>
-    <ol>
-      <li>Open the <b>Shortcuts</b> app, go to the <b>Shortcuts</b> tab, and tap
-        <b>+</b> in the top-right corner.</li>
-      <li>Tap the name at the top and call it something like <i>Push Reminders</i>.</li>
-    </ol>
+    <h3>3. Store the write token in Keychain</h3>
+    <pre><code>security add-generic-password -s reminders-export -a github-token -w YOUR_WRITE_TOKEN</code></pre>
+    <p>When Keychain prompts, allow the exporter to read it.</p>
 
-    <h4>3b. Read the reminders</h4>
-    <ol>
-      <li>Add <b>Find Reminders</b>. Leave it with <i>no</i> filters at all &mdash; if it
-        arrived with <i>Is Completed</i> is <i>No</i>, swipe that row away, or the Stats
-        tab will never see a single completed item.</li>
-      <li>Optionally tap <b>Sort by</b> and choose <i>Due Date</i>. Order does not matter
-        to this page, but it makes the shortcut&rsquo;s own preview easier to read.</li>
-      <li>Add <b>Repeat with Each</b>. It should already say <i>Repeat with each item in
-        Reminders</i>; if it does not, tap its input field and pick the
-        <i>Reminders</i> variable. Everything in the next step goes <i>inside</i> this
-        loop, between <i>Repeat with Each</i> and <i>End Repeat</i>.</li>
-    </ol>
+    <h3>4. Run once manually</h3>
+    <pre><code>.venv/bin/python reminders/export_reminders_to_github.py --token-keychain reminders-export</code></pre>
+    <p>If the target file does not exist, the first run creates it. After this
+      succeeds, paste your read token into <a href="#/settings">Settings</a>.</p>
 
-    <h4>3c. Turn each reminder into a row</h4>
-    <ol>
-      <li>Inside the loop, add a <b>Dictionary</b> action. A dictionary is a list of
-        key/value pairs &mdash; one per field this page reads.</li>
-      <li>Tap <b>Add new item</b> and create these ten keys, one at a time. For each one,
-        type the key name, then tap the value field, insert the <i>Repeat Item</i>
-        variable, and tap that inserted variable to choose the property:
-        <table class="table keys">
-          <thead><tr><th>Key</th><th>Property to pick</th></tr></thead>
-          <tbody>
-            <tr><td><code>id</code></td><td>Identifier</td></tr>
-            <tr><td><code>title</code></td><td>Name (or Title)</td></tr>
-            <tr><td><code>list</code></td><td>List</td></tr>
-            <tr><td><code>notes</code></td><td>Notes</td></tr>
-            <tr><td><code>created</code></td><td>Creation Date &mdash; see note below</td></tr>
-            <tr><td><code>due</code></td><td>Due Date</td></tr>
-            <tr><td><code>completed_at</code></td><td>Completion Date</td></tr>
-            <tr><td><code>priority</code></td><td>Priority</td></tr>
-            <tr><td><code>flagged</code></td><td>Is Flagged</td></tr>
-            <tr><td><code>completed</code></td><td>Is Completed</td></tr>
-          </tbody>
-        </table>
-      </li>
-      <li>For the three date keys (<code>created</code>, <code>due</code>,
-        <code>completed_at</code>), tap the variable once more and set <b>Date Format</b>
-        to <b>ISO 8601</b>. Any other format will not parse here.</li>
-      <li>If your version of <i>Repeat Item</i> offers no <b>Creation Date</b> property,
-        skip the <code>created</code> row entirely. The page handles its absence &mdash;
-        only the age-based figures on Stats disappear.</li>
-    </ol>
-
-    <h4>3d. Package the whole snapshot</h4>
-    <ol>
-      <li>Below <b>End Repeat</b>, add another <b>Dictionary</b> with four keys:
-        <code>version</code> = <code>2</code>, <code>source</code> =
-        <code>shortcut</code>, <code>generated_at</code> = the <b>Current Date</b>
-        variable formatted as <i>ISO 8601</i>, and <code>reminders</code> = the
-        <b>Repeat Results</b> variable. Set the <code>reminders</code> row&rsquo;s type
-        to <b>Array</b> so the rows stay a list.</li>
-      <li>Add <b>Base64 Encode</b> and point it at that dictionary. Tap <b>Show More</b>
-        and set <i>Line Breaks</i> to <b>None</b> &mdash; GitHub rejects wrapped Base64.
-        If the action refuses a dictionary as input, put a <b>Get Text from Input</b>
-        action in front of it.</li>
-    </ol>
-
-    <h4>3e. Send it to GitHub</h4>
-    <p>Updating a file over the GitHub API takes two requests: one to learn the current
-      file&rsquo;s <code>sha</code>, and one to write the new contents. GitHub requires
-      that SHA as proof you are replacing the version you last saw.</p>
-    <ol>
-      <li>Add <b>Get Contents of URL</b> with the URL
-        <code class="wrap">https://api.github.com/repos/ideal-knee/reminder-data/contents/reminders.json?ref=main</code>.
-        Tap <b>Show More</b>, set <i>Method</i> to <b>GET</b>, and under <i>Headers</i>
-        tap <b>Add new header</b> twice:
-        <code>Authorization</code> = <code>Bearer &lt;your write token&gt;</code> and
-        <code>Accept</code> = <code>application/vnd.github+json</code>.</li>
-      <li>Add <b>Get Dictionary Value</b>, key <code>sha</code>, from the response of that
-        request.</li>
-      <li>Add a second <b>Get Contents of URL</b>, same URL but <i>without</i> the
-        <code>?ref=main</code> part. Set <i>Method</i> to <b>PUT</b>, add the same two
-        headers, set <i>Request Body</i> to <b>JSON</b>, and add four fields:
-        <code>message</code> = <code>Update reminders snapshot</code>,
-        <code>content</code> = the <b>Base64 Encoded</b> variable,
-        <code>sha</code> = the <b>Dictionary Value</b> variable,
-        <code>branch</code> = <code>main</code>.</li>
-    </ol>
-
-    <h4>3f. Try it</h4>
-    <p>Tap the play button. The first run asks for permission to access Reminders and to
-      contact <code>api.github.com</code> &mdash; allow both. Then open the data repo on
-      github.com: you should see a fresh <i>Update reminders snapshot</i> commit. Paste
-      your read token into <a href="#/settings">Settings</a> here and your real reminders
-      replace the sample rows.</p>
-    <p>If the run fails, tap the last action to see GitHub&rsquo;s response.
-      <code>401</code> means the write token is wrong or expired, <code>404</code> means
-      the repo/path is wrong or the token is not scoped to that repo, and <code>409</code>
-      means the <code>sha</code> did not come through.</p>
-    <p class="warn-note">The write token is stored inside the shortcut in plain text, so
-      do not use <i>Share</i> to send this shortcut to anyone &mdash; the token travels
-      with it.</p>
-
-    <h3>4. Running it hourly</h3>
-    <p>Manual runs work today. For a schedule, add a <b>Personal Automation</b> in the
-      Shortcuts app (<i>Time of Day</i>, repeat hourly) that runs the shortcut, and turn
-      <i>Ask Before Running</i> off so it fires unattended. iOS will not run it more
-      often than every hour; for anything faster you would need a Mac (a
-      <code>launchd</code> job running <code>shortcuts run</code>) or a backend that
-      talks to iCloud CalDAV directly.</p>
+    <h3>5. Schedule with launchd</h3>
+    <p>Copy the agent plist into your LaunchAgents folder and load it:</p>
+    <pre><code>mkdir -p ~/Library/LaunchAgents
+cp /Users/dkee/Development/ideal-knee/devin-docs-test/reminders/com.ideal-knee.export-reminders.plist \
+   ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist
+chmod 600 ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist
+launchctl load -w ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist</code></pre>
+    <p>It runs every hour. Logs go to <code>reminders/export-reminders.log</code>.
+      To stop it:</p>
+    <pre><code>launchctl unload -w ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist</code></pre>
 
     <h3>Why not just make this repo private?</h3>
     <p>A private repo can host Pages on a paid plan, but the published site is still
@@ -281,6 +194,7 @@
   <span id="stamp" class="stamp"></span>
 </footer>
 
+<script src="js-yaml.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
