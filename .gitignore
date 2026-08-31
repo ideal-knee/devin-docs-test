@@ -4,3 +4,5 @@ _site/
 Gemfile.lock
 .venv/
 *.log
+reminders/*.app
+reminders/*.command

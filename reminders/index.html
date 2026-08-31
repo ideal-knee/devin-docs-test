@@ -155,18 +155,19 @@
     <p>If the target file does not exist, the first run creates it. After this
       succeeds, paste your read token into <a href="#/settings">Settings</a>.</p>
 
-    <h3>5. Schedule with launchd</h3>
-    <p>The agent runs the export through Terminal so macOS's Reminders permission already
-      granted to Terminal is reused. Copy the agent plist into your LaunchAgents folder and
-      load it:</p>
-    <pre><code>mkdir -p ~/Library/LaunchAgents
-cp /Users/dkee/Development/ideal-knee/devin-docs-test/reminders/com.ideal-knee.export-reminders.plist \
-   ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist
-chmod 600 ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist
-launchctl load -w ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist</code></pre>
-    <p>It runs at the top of each hour and once immediately when loaded. Logs go to
-      <code>reminders/export-reminders.log</code>. To stop it:</p>
-    <pre><code>launchctl unload -w ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist</code></pre>
+    <h3>5. Run the background loop</h3>
+    <p>macOS will not give a <code>launchd</code> agent or background <code>.app</code> access to
+      Reminders. The reliable way to keep exporting is a single Terminal loop that reuses the
+      permission Terminal already has. Start it in a Terminal tab/window and leave it running:</p>
+    <pre><code>./reminders/run_loop.sh</code></pre>
+    <p>It runs the exporter every 5 minutes and appends to
+      <code>reminders/export-reminders.log</code>. It is generally a no-op when reminders have not
+      changed. Stop it with <kbd>Ctrl+C</kbd> or close the Terminal tab.</p>
+
+    <h3>6. Optional: schedule with launchd</h3>
+    <p>The <code>reminders/com.ideal-knee.export-reminders.plist</code> is included for reference,
+      but it requires solving the macOS privacy prompt for a non-Terminal process. If you get that
+      working, it can run <code>reminders/run_export.command</code> every 5 minutes.</p>
 
     <h3>Why not just make this repo private?</h3>
     <p>A private repo can host Pages on a paid plan, but the published site is still
