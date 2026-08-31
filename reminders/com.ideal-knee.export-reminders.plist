@@ -10,22 +10,18 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/dkee/Development/ideal-knee/devin-docs-test/.venv/bin/python</string>
-    <string>/Users/dkee/Development/ideal-knee/devin-docs-test/reminders/export_reminders_to_github.py</string>
-    <string>--token-keychain</string>
-    <string>reminders-export</string>
+    <string>/usr/bin/open</string>
+    <string>-g</string>
+    <string>/Users/dkee/Development/ideal-knee/devin-docs-test/reminders/run_export.command</string>
   </array>
 
-  <key>StartInterval</key>
-  <integer>3600</integer>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
 
   <key>RunAtLoad</key>
-  <false/>
-
-  <key>StandardOutPath</key>
-  <string>/Users/dkee/Development/ideal-knee/devin-docs-test/reminders/export-reminders.log</string>
-
-  <key>StandardErrorPath</key>
-  <string>/Users/dkee/Development/ideal-knee/devin-docs-test/reminders/export-reminders.log</string>
+  <true/>
 </dict>
 </plist>

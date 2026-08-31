@@ -156,14 +156,16 @@
       succeeds, paste your read token into <a href="#/settings">Settings</a>.</p>
 
     <h3>5. Schedule with launchd</h3>
-    <p>Copy the agent plist into your LaunchAgents folder and load it:</p>
+    <p>The agent runs the export through Terminal so macOS's Reminders permission already
+      granted to Terminal is reused. Copy the agent plist into your LaunchAgents folder and
+      load it:</p>
     <pre><code>mkdir -p ~/Library/LaunchAgents
 cp /Users/dkee/Development/ideal-knee/devin-docs-test/reminders/com.ideal-knee.export-reminders.plist \
    ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist
 chmod 600 ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist
 launchctl load -w ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist</code></pre>
-    <p>It runs every hour. Logs go to <code>reminders/export-reminders.log</code>.
-      To stop it:</p>
+    <p>It runs at the top of each hour and once immediately when loaded. Logs go to
+      <code>reminders/export-reminders.log</code>. To stop it:</p>
     <pre><code>launchctl unload -w ~/Library/LaunchAgents/com.ideal-knee.export-reminders.plist</code></pre>
 
     <h3>Why not just make this repo private?</h3>
