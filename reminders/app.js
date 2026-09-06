@@ -514,41 +514,119 @@ function reminderItem(reminder, tags, extraClass) {
   return li;
 }
 
-function lineChart(points, format) {
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const width = 100;
-  const height = 40;
-  const peak = Math.max(1, ...points.map(p => p.count));
-  const x = i => points.length > 1 ? (i / (points.length - 1)) * width : width / 2;
-  const y = count => height - (count / peak) * height;
+/* ---------- vega-lite charts ---------- */
 
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  svg.setAttribute('preserveAspectRatio', 'none');
+const MUTED = '#8b93a7';
+const ACCENT = '#5ce1b9';
 
-  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(2)},${y(p.count).toFixed(2)}`).join(' ');
-  const area = document.createElementNS(svgNS, 'path');
-  area.setAttribute('class', 'line-area');
-  area.setAttribute('d', `${line} L${width},${height} L0,${height} Z`);
-  svg.appendChild(area);
+// Vega-Lite reads bare `YYYY-MM-DD` as UTC, which shifts days for anyone west of
+// Greenwich; a full local datetime string keeps each point on its own day.
+function localISO(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00:00`;
+}
 
-  const path = document.createElementNS(svgNS, 'path');
-  path.setAttribute('class', 'line-path');
-  path.setAttribute('d', line);
-  svg.appendChild(path);
+// Vega-Lite's default tick generator happily emits 0.5 steps on small counts,
+// which read as duplicates once the labels are formatted as integers.
+function countTicks(max) {
+  const step = Math.max(1, Math.ceil(max / 5));
+  const values = [];
+  for (let v = 0; v <= Math.max(max, 1); v += step) values.push(v);
+  return values;
+}
 
-  for (const [i, p] of points.entries()) {
-    const dot = document.createElementNS(svgNS, 'circle');
-    dot.setAttribute('class', 'line-dot');
-    dot.setAttribute('cx', x(i).toFixed(2));
-    dot.setAttribute('cy', y(p.count).toFixed(2));
-    dot.setAttribute('r', '0.9');
-    const title = document.createElementNS(svgNS, 'title');
-    title.textContent = `${format(p.day)}: ${p.count}`;
-    dot.appendChild(title);
-    svg.appendChild(dot);
+const CHART_CONFIG = {
+  background: null,
+  font: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  axis: {
+    labelColor: MUTED,
+    titleColor: MUTED,
+    titleFontWeight: 500,
+    domainColor: '#262b38',
+    tickColor: '#262b38',
+    gridColor: '#262b38',
+    labelFontSize: 11,
+    titleFontSize: 12
+  },
+  view: { stroke: null }
+};
+
+function completedChartSpec(buckets) {
+  return {
+    $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+    width: 'container',
+    height: 160,
+    data: {
+      values: buckets.map(b => ({
+        day: b.date.toLocaleDateString(undefined, { weekday: 'short' }),
+        date: b.date.toLocaleDateString(),
+        completed: b.count
+      }))
+    },
+    mark: { type: 'bar', color: ACCENT, opacity: 0.85, cornerRadiusEnd: 4 },
+    encoding: {
+      x: { field: 'day', type: 'nominal', sort: null, axis: { title: 'Day', labelAngle: 0 } },
+      y: {
+        field: 'completed',
+        type: 'quantitative',
+        axis: { title: 'Reminders completed', format: 'd', values: countTicks(Math.max(...buckets.map(b => b.count))) }
+      },
+      tooltip: [
+        { field: 'date', type: 'nominal', title: 'Day' },
+        { field: 'completed', type: 'quantitative', title: 'Completed' }
+      ]
+    },
+    config: CHART_CONFIG
+  };
+}
+
+function pastDueChartSpec(points) {
+  return {
+    $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+    width: 'container',
+    height: 180,
+    data: {
+      values: points.map(p => ({
+        day: localISO(p.day),
+        label: p.day.toLocaleDateString(),
+        pastDue: p.count
+      }))
+    },
+    encoding: {
+      x: {
+        field: 'day',
+        type: 'temporal',
+        axis: { title: 'Day', format: '%b %-d', grid: false, tickCount: 6 }
+      },
+      y: {
+        field: 'pastDue',
+        type: 'quantitative',
+        axis: { title: 'Reminders past due', format: 'd', values: countTicks(Math.max(...points.map(p => p.count))) }
+      },
+      tooltip: [
+        { field: 'label', type: 'nominal', title: 'Day' },
+        { field: 'pastDue', type: 'quantitative', title: 'Past due' }
+      ]
+    },
+    layer: [
+      { mark: { type: 'area', color: ACCENT, opacity: 0.14, line: false } },
+      { mark: { type: 'line', color: ACCENT, strokeWidth: 2 } },
+      { mark: { type: 'point', color: ACCENT, filled: true, size: 28 } }
+    ],
+    config: CHART_CONFIG
+  };
+}
+
+function drawChart(el, spec) {
+  if (typeof vegaEmbed === 'undefined') {
+    el.textContent = 'Charts need the Vega-Lite scripts, which this browser could not load.';
+    el.classList.add('chart-error');
+    return;
   }
-  return svg;
+  vegaEmbed(el, spec, { actions: false, renderer: 'svg' }).catch(err => {
+    el.textContent = `Could not draw the chart \u2014 ${err.message}`;
+    el.classList.add('chart-error');
+  });
 }
 
 function mountDashboard() {
@@ -567,15 +645,14 @@ function mountDashboard() {
     status.textContent = '';
   }
 
-  const dayName = d => d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
-  const completedCards = document.getElementById('completed-cards');
-  for (const b of completionsByDay(reminders, COMPLETED_DAYS)) {
-    completedCards.append(card(dayName(b.date), b.count));
-  }
+  drawChart(
+    document.getElementById('completed-chart'),
+    completedChartSpec(completionsByDay(reminders, COMPLETED_DAYS))
+  );
 
   const points = pastDueByDay(reminders, BACKLOG_DAYS);
   const fmt = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  document.getElementById('overdue-chart').append(lineChart(points, fmt));
+  drawChart(document.getElementById('overdue-chart'), pastDueChartSpec(points));
   document.getElementById('overdue-range').textContent =
     `${fmt(points[0].day)} \u2013 today \u2014 now ${points[points.length - 1].count}`;
 
