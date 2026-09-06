@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Reminders Mirror</title>
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 <header>
@@ -58,9 +58,9 @@
   <section class="screen">
     <p id="dashboard-status" class="status"></p>
     <h3 class="chart-title">Completed per day <small>last 7 days</small></h3>
-    <div id="completed-cards" class="cards"></div>
+    <div id="completed-chart" class="vega"></div>
     <h3 class="chart-title">Past due <small id="overdue-range"></small></h3>
-    <div id="overdue-chart" class="linechart"></div>
+    <div id="overdue-chart" class="vega"></div>
     <p id="overdue-note" class="status"></p>
     <h3 class="chart-title">Most overdue</h3>
     <ul id="rank-most" class="items"></ul>
@@ -196,6 +196,9 @@
 </footer>
 
 <script src="js-yaml.min.js?v=1"></script>
-<script src="app.js?v=3"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega@5.30.0/build/vega.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-lite@5.21.0/build/vega-lite.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-embed@6.26.0/build/vega-embed.min.js"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
