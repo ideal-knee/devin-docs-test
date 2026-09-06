@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Reminders Mirror</title>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 <header>
@@ -57,19 +57,17 @@
 <template id="tpl-dashboard">
   <section class="screen">
     <p id="dashboard-status" class="status"></p>
-    <h3 class="chart-title">Completed</h3>
+    <h3 class="chart-title">Completed per day <small>last 7 days</small></h3>
     <div id="completed-cards" class="cards"></div>
-    <h3 class="chart-title">Open by age</h3>
-    <div id="age-cards" class="cards"></div>
+    <h3 class="chart-title">Past due <small id="overdue-range"></small></h3>
+    <div id="overdue-chart" class="linechart"></div>
+    <p id="overdue-note" class="status"></p>
+    <h3 class="chart-title">Most overdue</h3>
+    <ul id="rank-most" class="items"></ul>
+    <h3 class="chart-title">Least overdue <small>still past due</small></h3>
+    <ul id="rank-least" class="items"></ul>
     <h3 class="chart-title">Recently completed</h3>
     <ul id="recent" class="items"></ul>
-    <h3 class="chart-title">Months ranked by completions</h3>
-    <table id="month-rank" class="table">
-      <thead>
-        <tr><th>Month</th><th>Completed</th><th>Rank</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
   </section>
 </template>
 
@@ -198,6 +196,6 @@
 </footer>
 
 <script src="js-yaml.min.js?v=1"></script>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

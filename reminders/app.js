@@ -439,6 +439,10 @@ function mountStats() {
 
 /* ---------- dashboard view ---------- */
 
+const COMPLETED_DAYS = 7;
+const BACKLOG_DAYS = 30;
+const RANK_SIZE = 5;
+
 function recentlyCompleted(reminders, n) {
   return reminders
     .filter(r => r.completed && parseDate(r.completed_at))
@@ -452,59 +456,99 @@ function startOfDay(d) {
   return s;
 }
 
-function completedToday(reminders) {
-  const start = startOfDay(new Date());
-  return reminders.filter(r => {
-    const at = parseDate(r.completed_at);
-    return at && at >= start;
-  }).length;
-}
-
-function completedWithinDays(reminders, days) {
+// Reconstructs the past-due backlog from the current snapshot: an item counted
+// at instant `t` if it already existed, was due, and was not yet completed.
+function pastDueByDay(reminders, days) {
   const now = new Date();
-  return reminders.filter(r => {
-    const at = parseDate(r.completed_at);
-    return at && (now - at) <= days * DAY;
-  }).length;
-}
-
-function monthRanking(reminders, monthsBack) {
-  const now = new Date();
-  const counts = new Map();
-  const labels = new Map();
-  for (let i = 0; i < monthsBack; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    counts.set(key, 0);
-    labels.set(key, d.toLocaleString(undefined, { year: 'numeric', month: 'short' }));
+  const today = startOfDay(now);
+  const points = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const day = new Date(today - i * DAY);
+    const at = i === 0 ? now : new Date(day.getTime() + DAY);
+    points.push({ day, at, count: 0, unknown: 0 });
   }
   for (const r of reminders) {
-    const at = parseDate(r.completed_at);
-    if (!at) continue;
-    const key = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}`;
-    if (counts.has(key)) counts.set(key, counts.get(key) + 1);
-  }
-  const ranked = [...counts.entries()]
-    .map(([key, count]) => ({ key, label: labels.get(key), count }))
-    .sort((a, b) => b.count - a.count || b.key.localeCompare(a.key));
-  return ranked.map((r, i) => ({ ...r, rank: i + 1 }));
-}
-
-function openAgeBuckets(reminders) {
-  const now = new Date();
-  const buckets = { total: 0, '0-1 day': 0, '1-7 days': 0, '8-30 days': 0, '>30 days': 0 };
-  for (const r of reminders) {
-    if (r.completed) continue;
+    const due = parseDate(r.due);
+    if (!due) continue;
     const created = parseDate(r.created);
-    if (!created) continue;
-    const age = (now - created) / DAY;
-    buckets.total++;
-    if (age <= 1) buckets['0-1 day']++;
-    else if (age <= 7) buckets['1-7 days']++;
-    else if (age <= 30) buckets['8-30 days']++;
-    else buckets['>30 days']++;
+    const completedAt = parseDate(r.completed_at);
+    for (const p of points) {
+      if (due >= p.at) continue;
+      if (created && created > p.at) continue;
+      if (r.completed && !completedAt) { p.unknown++; continue; }
+      if (completedAt && completedAt <= p.at) continue;
+      p.count++;
+    }
   }
-  return buckets;
+  return points;
+}
+
+function overdueRanking(reminders, n, order) {
+  const now = new Date();
+  const overdue = reminders
+    .filter(r => !r.completed)
+    .map(r => ({ reminder: r, due: parseDate(r.due) }))
+    .filter(x => x.due && x.due < now)
+    .sort((a, b) => order === 'most' ? a.due - b.due : b.due - a.due);
+  return overdue.slice(0, n);
+}
+
+function reminderItem(reminder, tags, extraClass) {
+  const li = document.createElement('li');
+  li.className = `item${extraClass ? ` ${extraClass}` : ''}`;
+
+  const title = document.createElement('span');
+  title.className = 'title';
+  title.textContent = reminder.title || '(untitled)';
+  li.appendChild(title);
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  for (const t of tags) {
+    const span = document.createElement('span');
+    span.className = `tag ${t.cls || ''}`.trim();
+    span.textContent = t.text;
+    meta.appendChild(span);
+  }
+  if (meta.childElementCount) li.appendChild(meta);
+  return li;
+}
+
+function lineChart(points, format) {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const width = 100;
+  const height = 40;
+  const peak = Math.max(1, ...points.map(p => p.count));
+  const x = i => points.length > 1 ? (i / (points.length - 1)) * width : width / 2;
+  const y = count => height - (count / peak) * height;
+
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+
+  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(2)},${y(p.count).toFixed(2)}`).join(' ');
+  const area = document.createElementNS(svgNS, 'path');
+  area.setAttribute('class', 'line-area');
+  area.setAttribute('d', `${line} L${width},${height} L0,${height} Z`);
+  svg.appendChild(area);
+
+  const path = document.createElementNS(svgNS, 'path');
+  path.setAttribute('class', 'line-path');
+  path.setAttribute('d', line);
+  svg.appendChild(path);
+
+  for (const [i, p] of points.entries()) {
+    const dot = document.createElementNS(svgNS, 'circle');
+    dot.setAttribute('class', 'line-dot');
+    dot.setAttribute('cx', x(i).toFixed(2));
+    dot.setAttribute('cy', y(p.count).toFixed(2));
+    dot.setAttribute('r', '0.9');
+    const title = document.createElementNS(svgNS, 'title');
+    title.textContent = `${format(p.day)}: ${p.count}`;
+    dot.appendChild(title);
+    svg.appendChild(dot);
+  }
+  return svg;
 }
 
 function mountDashboard() {
@@ -523,58 +567,40 @@ function mountDashboard() {
     status.textContent = '';
   }
 
+  const dayName = d => d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
   const completedCards = document.getElementById('completed-cards');
-  completedCards.append(
-    card('today', completedToday(reminders)),
-    card('last 7 days', completedWithinDays(reminders, 7)),
-    card('last 30 days', completedWithinDays(reminders, 30)),
-    card('total completed', reminders.filter(r => r.completed).length)
-  );
+  for (const b of completionsByDay(reminders, COMPLETED_DAYS)) {
+    completedCards.append(card(dayName(b.date), b.count));
+  }
 
-  const age = openAgeBuckets(reminders);
-  const ageCards = document.getElementById('age-cards');
-  ageCards.append(
-    card('open', age.total),
-    card('0–1 day', age['0-1 day']),
-    card('1–7 days', age['1-7 days']),
-    card('8–30 days', age['8-30 days']),
-    card('>30 days', age['>30 days'])
-  );
+  const points = pastDueByDay(reminders, BACKLOG_DAYS);
+  const fmt = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  document.getElementById('overdue-chart').append(lineChart(points, fmt));
+  document.getElementById('overdue-range').textContent =
+    `${fmt(points[0].day)} \u2013 today \u2014 now ${points[points.length - 1].count}`;
+
+  const unknown = Math.max(...points.map(p => p.unknown));
+  const note = document.getElementById('overdue-note');
+  note.textContent = unknown
+    ? `Reconstructed from this snapshot; ${unknown} completed items lack a "completed_at" date and are left out of earlier days.`
+    : 'Reconstructed from this snapshot, so items deleted since then are not counted.';
+
+  const rankTags = x => [
+    { text: x.reminder.list || '(no list)' },
+    { text: `${Math.floor((new Date() - x.due) / DAY)}d overdue`, cls: 'due-soon' },
+    { text: x.due.toLocaleDateString() }
+  ];
+  const most = document.getElementById('rank-most');
+  for (const x of overdueRanking(reminders, RANK_SIZE, 'most')) most.append(reminderItem(x.reminder, rankTags(x)));
+  const least = document.getElementById('rank-least');
+  for (const x of overdueRanking(reminders, RANK_SIZE, 'least')) least.append(reminderItem(x.reminder, rankTags(x)));
 
   const recent = document.getElementById('recent');
   for (const r of recentlyCompleted(reminders, 8)) {
-    const li = document.createElement('li');
-    li.className = 'item done';
-
-    const title = document.createElement('span');
-    title.className = 'title';
-    title.textContent = r.title || '(untitled)';
-    li.appendChild(title);
-
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    const listSpan = document.createElement('span');
-    listSpan.className = 'tag';
-    listSpan.textContent = r.list || '(no list)';
-    meta.appendChild(listSpan);
-    const at = parseDate(r.completed_at);
-    const dateSpan = document.createElement('span');
-    dateSpan.className = 'tag';
-    dateSpan.textContent = at.toLocaleDateString();
-    meta.appendChild(dateSpan);
-    li.appendChild(meta);
-    recent.appendChild(li);
-  }
-
-  const tbody = document.querySelector('#month-rank tbody');
-  for (const m of monthRanking(reminders, 12)) {
-    const tr = document.createElement('tr');
-    for (const v of [m.label, m.count, m.rank]) {
-      const td = document.createElement('td');
-      td.textContent = String(v);
-      tr.appendChild(td);
-    }
-    tbody.appendChild(tr);
+    recent.append(reminderItem(r, [
+      { text: r.list || '(no list)' },
+      { text: parseDate(r.completed_at).toLocaleDateString() }
+    ], 'done'));
   }
 }
 
