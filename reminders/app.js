@@ -15,6 +15,7 @@ const state = {
   config: loadConfig(),
   token: '',   // decrypted token, memory only
   data: null,
+  history: null,   // { loading, points, error, reconstructed }
   error: null,
   loading: false,
   demo: false,
@@ -93,24 +94,34 @@ async function decryptToken(enc, passcode) {
 
 /* ---------- data ---------- */
 
-async function fetchSnapshot() {
-  const { repo, path, branch } = state.config;
-  const token = state.token;
-  const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${encodeURIComponent(branch || 'main')}&t=${Date.now()}`;
-  // The raw media type returns the file body itself rather than base64 in a wrapper.
+async function gh(url, accept) {
   const res = await fetch(url, {
     cache: 'no-store',
     headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github.raw+json',
+      Authorization: `Bearer ${state.token}`,
+      Accept: accept,
       'X-GitHub-Api-Version': '2022-11-28'
     }
   });
   if (res.status === 401) throw new Error('token rejected (401) — expired or revoked?');
-  if (res.status === 403) throw new Error('forbidden (403) — token lacks Contents: Read on this repo');
+  if (res.status === 403) throw new Error('forbidden (403) — token lacks Contents: Read on this repo, or the rate limit is spent');
   if (res.status === 404) throw new Error('not found (404) — check the repo, branch and file path');
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res;
+}
+
+async function fetchSnapshot() {
+  const { repo, path, branch } = state.config;
+  const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${encodeURIComponent(branch || 'main')}&t=${Date.now()}`;
+  // The raw media type returns the file body itself rather than base64 in a wrapper.
+  const res = await gh(url, 'application/vnd.github.raw+json');
   return parseSnapshot(await res.text());
+}
+
+async function fetchSnapshotAt(sha) {
+  const { repo, path } = state.config;
+  const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${sha}`;
+  return parseSnapshot(await (await gh(url, 'application/vnd.github.raw+json')).text());
 }
 
 async function load() {
@@ -121,6 +132,7 @@ async function load() {
   }
   state.loading = true;
   state.error = null;
+  state.history = null;
   render();
   try {
     if (configured()) {
@@ -440,7 +452,7 @@ function mountStats() {
 /* ---------- dashboard view ---------- */
 
 const COMPLETED_DAYS = 7;
-const BACKLOG_DAYS = 30;
+const HISTORY_DAYS = 14;
 const RANK_SIZE = 5;
 
 function recentlyCompleted(reminders, n) {
@@ -459,14 +471,7 @@ function startOfDay(d) {
 // Reconstructs the past-due backlog from the current snapshot: an item counted
 // at instant `t` if it already existed, was due, and was not yet completed.
 function pastDueByDay(reminders, days) {
-  const now = new Date();
-  const today = startOfDay(now);
-  const points = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const day = new Date(today - i * DAY);
-    const at = i === 0 ? now : new Date(day.getTime() + DAY);
-    points.push({ day, at, count: 0, unknown: 0 });
-  }
+  const points = historyDays(days).map(s => ({ ...s, count: 0, unknown: 0 }));
   for (const r of reminders) {
     const due = parseDate(r.due);
     if (!due) continue;
@@ -481,6 +486,67 @@ function pastDueByDay(reminders, days) {
     }
   }
   return points;
+}
+
+function pastDueAt(reminders, at) {
+  return reminders.filter(r => {
+    const due = parseDate(r.due);
+    return !r.completed && due && due < at;
+  }).length;
+}
+
+// The days the chart wants, each paired with the instant it is measured at:
+// midnight the next morning, except today, which is measured now.
+function historyDays(days) {
+  const now = new Date();
+  const today = startOfDay(now);
+  const out = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const day = new Date(today - i * DAY);
+    out.push({ day, at: i === 0 ? now : new Date(day.getTime() + DAY) });
+  }
+  return out;
+}
+
+/* Real past-due history: one commit list call, then the snapshot as it stood at
+   the end of each day. Days sharing a commit (nothing was pushed since) reuse
+   the same fetch, so a quiet fortnight costs far fewer than 14 file reads. */
+async function fetchPastDueHistory(days) {
+  const { repo, path, branch } = state.config;
+  const slots = historyDays(days);
+  const since = slots[0].day.toISOString();
+  const query = `sha=${encodeURIComponent(branch || 'main')}&path=${encodeURIComponent(path)}`;
+  const list = url => gh(url, 'application/vnd.github+json').then(r => r.json());
+  const [inWindow, before] = await Promise.all([
+    list(`https://api.github.com/repos/${repo}/commits?${query}&since=${since}&per_page=100`),
+    // The earliest days predate every commit in the window, so they need the
+    // last commit before it — the snapshot they actually saw at the time.
+    list(`https://api.github.com/repos/${repo}/commits?${query}&until=${since}&per_page=1`)
+  ]);
+
+  const commits = [...inWindow, ...before]
+    .map(c => ({ sha: c.sha, at: new Date(c.commit.committer.date) }))
+    .sort((a, b) => a.at - b.at);
+  if (!commits.length) throw new Error('no commits found for this file');
+
+  for (const slot of slots) {
+    const commit = [...commits].reverse().find(c => c.at <= slot.at);
+    slot.sha = commit ? commit.sha : null;
+  }
+
+  const snapshots = new Map();
+  await Promise.all([...new Set(slots.map(s => s.sha).filter(Boolean))].map(
+    async sha => snapshots.set(sha, await fetchSnapshotAt(sha))
+  ));
+
+  return {
+    calls: snapshots.size + 2,
+    points: slots.map(s => ({
+      day: s.day,
+      // A day older than the file itself has no snapshot to count.
+      count: s.sha ? pastDueAt(snapshots.get(s.sha).reminders || [], s.at) : null
+    }))
+  };
 }
 
 function overdueRanking(reminders, n, order) {
@@ -586,7 +652,7 @@ function pastDueChartSpec(points) {
     width: 'container',
     height: 180,
     data: {
-      values: points.map(p => ({
+      values: points.filter(p => p.count !== null).map(p => ({
         day: localISO(p.day),
         label: p.day.toLocaleDateString(),
         pastDue: p.count
@@ -601,7 +667,7 @@ function pastDueChartSpec(points) {
       y: {
         field: 'pastDue',
         type: 'quantitative',
-        axis: { title: 'Reminders past due', format: 'd', values: countTicks(Math.max(...points.map(p => p.count))) }
+        axis: { title: 'Reminders past due', format: 'd', values: countTicks(Math.max(0, ...points.map(p => p.count).filter(c => c !== null))) }
       },
       tooltip: [
         { field: 'label', type: 'nominal', title: 'Day' },
@@ -629,6 +695,65 @@ function drawChart(el, spec) {
   });
 }
 
+function drawPastDue(points, note) {
+  const fmt = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const known = points.filter(p => p.count !== null);
+  drawChart(document.getElementById('overdue-chart'), pastDueChartSpec(points));
+  document.getElementById('overdue-range').textContent = known.length
+    ? `${fmt(known[0].day)} \u2013 today \u2014 now ${known[known.length - 1].count}`
+    : '';
+  document.getElementById('overdue-note').textContent = note;
+}
+
+function reconstructed(reminders, why) {
+  const points = pastDueByDay(reminders, HISTORY_DAYS);
+  const unknown = Math.max(...points.map(p => p.unknown));
+  const gap = unknown
+    ? ` ${unknown} completed items lack a "completed_at" date and are left out of earlier days.`
+    : ' Items deleted since then are not counted.';
+  drawPastDue(points, `${why} Reconstructed from the current snapshot instead.${gap}`);
+}
+
+/* The past-due line comes from git history, which lands after the page does, so
+   this re-runs itself once the fetch settles — unless the user has left the tab. */
+function mountPastDue() {
+  const reminders = (state.data && state.data.reminders) || [];
+  if (state.loading || state.error) return;
+
+  if (state.demo || !configured()) {
+    reconstructed(reminders, 'Sample data has no commit history.');
+    return;
+  }
+
+  if (!state.history) {
+    // A reload mid-flight clears state.history, so an in-flight fetch only gets
+    // to publish its result while its own marker object is still the current one.
+    const pending = { loading: true };
+    state.history = pending;
+    fetchPastDueHistory(HISTORY_DAYS)
+      .then(h => h, err => ({ error: err.message }))
+      .then(result => {
+        if (state.history !== pending) return;
+        state.history = result;
+        if (currentRoute() === '/dashboard') mountPastDue();
+      });
+  }
+
+  if (state.history.loading) {
+    document.getElementById('overdue-note').textContent =
+      `Reading the last ${HISTORY_DAYS} days of snapshots from git\u2026`;
+  } else if (state.history.error) {
+    reconstructed(reminders, `Could not read git history \u2014 ${state.history.error}.`);
+  } else {
+    const missing = state.history.points.filter(p => p.count === null).length;
+    drawPastDue(
+      state.history.points,
+      `From the snapshot committed at the end of each day (${state.history.calls} API calls).` +
+        (missing ? ` ${missing} days predate the file's first commit.` : '')
+    );
+  }
+}
+
 function mountDashboard() {
   const status = document.getElementById('dashboard-status');
   const reminders = (state.data && state.data.reminders) || [];
@@ -650,17 +775,7 @@ function mountDashboard() {
     completedChartSpec(completionsByDay(reminders, COMPLETED_DAYS))
   );
 
-  const points = pastDueByDay(reminders, BACKLOG_DAYS);
-  const fmt = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  drawChart(document.getElementById('overdue-chart'), pastDueChartSpec(points));
-  document.getElementById('overdue-range').textContent =
-    `${fmt(points[0].day)} \u2013 today \u2014 now ${points[points.length - 1].count}`;
-
-  const unknown = Math.max(...points.map(p => p.unknown));
-  const note = document.getElementById('overdue-note');
-  note.textContent = unknown
-    ? `Reconstructed from this snapshot; ${unknown} completed items lack a "completed_at" date and are left out of earlier days.`
-    : 'Reconstructed from this snapshot, so items deleted since then are not counted.';
+  mountPastDue();
 
   const rankTags = x => [
     { text: x.reminder.list || '(no list)' },
