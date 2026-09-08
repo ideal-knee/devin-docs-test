@@ -13,3 +13,4 @@ This site is a place to document whatever I feel like.
 - [The Case of the Borrowed Hatchet](stories/the-case-of-the-borrowed-hatchet.html) — a woods mystery
 - [Tilt Spike](spa/) — a tilt-controlled SPA, best on a phone
 - [Reminders Mirror](reminders/) — Apple Reminders, pushed here by a macOS exporter
+- [Exporting Reminders from an iPhone](reminders/iphone-export.html) — the same exporter, in Scriptable
